@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import "../src/presentation/voice-expense-recorder.css";
+import "../src/presentation/responsive.css";
 
 export const metadata: Metadata = {
   title: "Mi Balance · Obligaciones e ingresos",

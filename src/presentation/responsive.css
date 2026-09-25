@@ -1,0 +1,153 @@
+html { -webkit-text-size-adjust: 100%; }
+body { min-width: 320px; overflow-x: hidden; }
+button, input, select, textarea { max-width: 100%; }
+[data-slot="table-container"] { overscroll-behavior-inline: contain; scrollbar-width: thin; }
+
+@media (max-width: 1200px) {
+  .topbar { padding-inline: 3%; }
+  .workspace { padding-inline: 3%; }
+  .account-actions { margin-left: auto; }
+  .account-name { max-width: 210px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .ledger-panel [data-slot="table"] { min-width: 820px; }
+  .admin-dialog { width: min(760px, calc(100vw - 28px)); }
+}
+
+@media (max-width: 900px) {
+  .topbar { position: sticky; top: 0; z-index: 30; padding-inline: 20px; }
+  .workspace { padding: 28px 20px 18px; }
+  .page-heading { align-items: flex-start; }
+  .heading-actions { flex-direction: row; align-items: center; }
+  .content-grid { grid-template-columns: minmax(0, 1fr); }
+  .right-rail { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .right-rail .source-note { grid-column: 1 / -1; }
+  .summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .available { grid-column: span 2; }
+  .panel-tabs { align-items: flex-end; overflow: hidden; }
+  .panel-tabs [data-slot="tabs-list"] {
+    display: flex;
+    width: 100%;
+    max-width: 100%;
+    flex-direction: row;
+    align-items: stretch;
+    justify-content: flex-start;
+    gap: 10px;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scroll-snap-type: x proximity;
+    scrollbar-width: thin;
+  }
+  .tab-cluster { min-width: 250px; scroll-snap-align: start; }
+  .obligation-flow { min-width: 520px; }
+  .tab-cluster-items { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .monthly-tools .tab-cluster-items { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .advisor-tool .tab-cluster-items { grid-template-columns: 1fr; }
+  .tab-cluster [data-slot="tabs-trigger"] { width: 100%; justify-content: center; }
+  .panel-tabs .text-button { margin: 0 0 4px; }
+  .editor,
+  .admin-dialog { max-height: 92dvh; }
+}
+
+@media (max-width: 700px) {
+  .topbar { height: 66px; gap: 10px; padding-inline: 14px; }
+  .brand { font-size: 20px; gap: 8px; }
+  .brand-symbol { padding: 8px; }
+  .account-actions { gap: 5px; }
+  .account-name { display: none; }
+  .account-actions button { width: 38px; height: 38px; justify-content: center; padding: 0; font-size: 0; }
+  .account-actions button svg { width: 18px; height: 18px; }
+  .workspace { padding: 22px 12px 14px; }
+  .page-heading { gap: 15px; margin-bottom: 20px; }
+  .page-heading h1 { font-size: 29px; }
+  .page-heading .muted { font-size: 13px; }
+  .heading-actions { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+  .month-picker { min-width: 0; }
+  .month-picker label { flex: 1; min-width: 0; }
+  .month-picker input { width: 100%; min-width: 112px; }
+  .heading-actions > .primary { min-height: 44px; white-space: nowrap; }
+  .summary { gap: 10px; margin-bottom: 20px; }
+  .metric, .available { min-width: 0; }
+  .metric strong, .available strong { overflow-wrap: anywhere; }
+  .ledger-panel { border-radius: 11px; }
+  .panel-tabs { padding: 12px; }
+  .panel-tabs [data-slot="tabs-list"] { display: flex; }
+  .tab-cluster { min-width: 224px; padding: 7px; }
+  .obligation-flow { min-width: 480px; }
+  .tab-cluster-items { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .tab-cluster [data-slot="tabs-trigger"] { justify-content: center; text-align: center; font-size: 12px; white-space: nowrap; }
+  .tab-cluster-label { font-size: 9px; }
+  .panel-tabs .text-button { min-height: 40px; margin-left: auto; }
+  .table-toolbar { align-items: stretch; flex-direction: column; padding: 14px; }
+  .table-toolbar [data-slot="select-trigger"] { width: 100%; }
+  .ledger-panel [data-slot="table"] { min-width: 760px; }
+  .expense-heading { gap: 12px; }
+  .expense-total { min-width: 112px; }
+  .expense-toolbar { align-items: stretch; flex-direction: column; }
+  .expense-toolbar [data-slot="select-trigger"] { width: 100%; }
+  .expense-item { align-items: flex-start; }
+  .expense-description { min-width: 0; flex-basis: calc(100% - 54px); }
+  .expense-item > b { margin-left: 48px; }
+  .expense-actions { margin-left: auto; }
+  .movement { align-items: flex-start; }
+  .movement-description { flex-basis: calc(100% - 52px); }
+  .movement > b { margin-left: 48px; }
+  .movement .reverse-button { margin-left: auto; }
+  .right-rail { grid-template-columns: 1fr; }
+  .right-rail .source-note { grid-column: auto; }
+  .report-cards { grid-template-columns: 1fr; }
+  .admin-dialog [data-slot="dialog-title"] { padding-right: 32px; }
+  .admin-list article { align-items: flex-start; flex-direction: column; }
+  .admin-list article > div:last-child { width: 100%; justify-content: flex-start; }
+  .admin-list button { min-height: 38px; }
+  .editor[data-slot="dialog-content"],
+  .admin-dialog[data-slot="dialog-content"] { width: calc(100vw - 20px); max-width: none; padding: 18px; }
+  .page-footer { padding-inline: 4px; }
+}
+
+@media (max-width: 480px) {
+  .workspace { padding-inline: 10px; }
+  .eyebrow { font-size: 10px; }
+  .heading-actions { grid-template-columns: 1fr; }
+  .heading-actions > .primary { width: 100%; }
+  .month-picker { width: 100%; justify-content: space-between; }
+  .month-picker input { text-align: center; }
+  .summary { grid-template-columns: 1fr; }
+  .available { grid-column: auto; }
+  .metric, .available { padding: 17px; }
+  .available { padding-bottom: 0; }
+  .available-bottom { margin-inline: -17px; padding-inline: 17px; }
+  .metric strong, .available strong { font-size: 26px; }
+  .panel-tabs { align-items: stretch; flex-direction: column; }
+  .panel-tabs .text-button { justify-content: center; width: 100%; margin: 0; border: 1px solid #dce6df; border-radius: 8px; }
+  .obligation-flow { min-width: 430px; }
+  .expense-heading { flex-direction: column; }
+  .expense-total { width: 100%; text-align: left; }
+  .expense-item > b, .movement > b { margin-left: 0; }
+  .expense-actions, .movement .reverse-button { margin-left: auto; }
+  .promotion-summary { grid-template-columns: 1fr; }
+  .promotion-summary p { grid-column: auto; }
+  .location-choice { grid-template-columns: 1fr; }
+  .location-choice-icon { margin-bottom: 2px; }
+  .store-list article { flex-wrap: wrap; }
+  .store-list article > div { min-width: calc(100% - 50px); }
+  .store-list article > b { margin-left: 45px; }
+  .chat-heading { align-items: flex-start; }
+  .chat-heading > div { min-width: calc(100% - 64px); }
+  .chat-heading > .text-button { width: 100%; justify-content: center; padding: 8px; border: 1px solid #e0e8e1; border-radius: 7px; }
+  .chat-context-title { flex-direction: column; }
+  .chat-context-toggle { width: 100%; }
+  .chat-send-row .primary { width: 100%; margin-left: 0; }
+  .movement-confirm-dialog[data-slot="alert-dialog-content"],
+  .clear-chat-dialog[data-slot="alert-dialog-content"] { width: calc(100vw - 20px); max-width: none; }
+}
+
+@media (max-width: 360px) {
+  .topbar { padding-inline: 10px; }
+  .brand { font-size: 18px; }
+  .brand-symbol { padding: 7px; }
+  .workspace { padding-inline: 7px; }
+  .page-heading h1 { font-size: 26px; }
+  .panel-tabs { padding: 9px; }
+  .tab-cluster { min-width: 210px; }
+  .obligation-flow { min-width: 405px; }
+  .metric strong, .available strong { font-size: 23px; }
+}
