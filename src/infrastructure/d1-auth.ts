@@ -70,6 +70,7 @@ export class D1AuthRepository{
   const raw=token();await this.db.prepare('INSERT INTO sessions (id_hash,user_id,created_at,expires_at) VALUES (?,?,?,?)').bind(await hash(raw),row.id,this.now(),this.now()+604800000).run();return {token:raw,user:{id:row.id,email:row.email,displayName:row.displayName,role:row.role,status:row.status,emailVerifiedAt:verifiedAt} satisfies SessionUser};
  }
  async firebaseIdentity(userId:string){return this.db.prepare('SELECT firebase_uid AS firebaseUid,email,display_name AS displayName,email_verified_at AS emailVerifiedAt,status FROM users WHERE id=?').bind(userId).first<{firebaseUid:string|null;email:string;displayName:string;emailVerifiedAt:number|null;status:UserStatus}>()}
+ async unapprovedIdentity(userId:string){const user=await this.db.prepare("SELECT firebase_uid AS firebaseUid,email,display_name AS displayName FROM users WHERE id=? AND role='user' AND approved_at IS NULL AND status IN ('pending','rejected')").bind(userId).first<{firebaseUid:string|null;email:string;displayName:string}>();if(!user)throw new AuthError('Solo se pueden eliminar cuentas pendientes o rechazadas que nunca fueron aprobadas.',409);return user}
  async linkFirebase(userId:string,firebaseUid:string){await this.db.prepare('UPDATE users SET firebase_uid=? WHERE id=? AND firebase_uid IS NULL').bind(firebaseUid,userId).run()}
  async logout(request:Request){const raw=sessionToken(request);if(raw)await this.db.prepare('DELETE FROM sessions WHERE id_hash=?').bind(await hash(raw)).run()}
  async createEmailVerification(userId:string){
@@ -103,6 +104,10 @@ export class D1AuthRepository{
   if(status==='active'){const user=await this.db.prepare('SELECT email_verified_at AS emailVerifiedAt FROM users WHERE id=?').bind(userId).first<{emailVerifiedAt:number|null}>();if(!user?.emailVerifiedAt)throw new AuthError('Valida el correo de esta cuenta antes de aprobarla.',409)}
   await this.db.prepare("UPDATE users SET status=?,approved_at=CASE WHEN ?='active' THEN ? ELSE approved_at END,approved_by=? WHERE id=? AND role<>'admin'").bind(status,status,this.now(),adminId,userId).run();
   if(status!=='active')await this.db.prepare('DELETE FROM sessions WHERE user_id=?').bind(userId).run();
+ }
+ async deleteUnapprovedUser(userId:string){
+  await this.unapprovedIdentity(userId);
+  await this.db.batch([this.db.prepare('DELETE FROM sessions WHERE user_id=?').bind(userId),this.db.prepare('DELETE FROM email_verifications WHERE user_id=?').bind(userId),this.db.prepare('DELETE FROM password_reset_requests WHERE user_id=?').bind(userId),this.db.prepare('DELETE FROM users WHERE id=?').bind(userId)]);
  }
  async issueReset(approvedBy:string|null,requestId:string){
   const raw=token();const result=await this.db.prepare("UPDATE password_reset_requests SET token_hash=?,status='issued',expires_at=?,approved_by=? WHERE id=? AND status='requested'").bind(await hash(raw),this.now()+1800000,approvedBy,requestId).run();

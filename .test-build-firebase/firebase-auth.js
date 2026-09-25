@@ -68,5 +68,13 @@ export class FirebaseAuthService {
     async adminPost(path, body) { const access = await this.oauthToken(); const response = await this.send(`https://identitytoolkit.googleapis.com/v1/projects/${encodeURIComponent(this.config.projectId)}/${path}`, { method: 'POST', headers: { ...jsonHeaders, Authorization: `Bearer ${access}` }, body: JSON.stringify(body) }); return this.response(response); }
     async createManagedUser(input) { const result = await this.adminPost('accounts', { email: input.email, password: input.password, displayName: input.displayName, emailVerified: input.emailVerified, disableUser: false }); return result.localId; }
     async updateUser(uid, input) { await this.adminPost('accounts:update', { localId: uid, ...(input.emailVerified === undefined ? {} : { emailVerified: input.emailVerified }), ...(input.disabled === undefined ? {} : { disableUser: input.disabled }) }); }
+    async deleteUser(uid) { try {
+        await this.adminPost('accounts:delete', { localId: uid });
+    }
+    catch (error) {
+        if (error instanceof FirebaseError && error.code === 'USER_NOT_FOUND')
+            return;
+        throw error;
+    } }
     async generatePasswordResetLink(email) { const result = await this.adminPost('accounts:sendOobCode', { requestType: 'PASSWORD_RESET', email, returnOobLink: true }); return result.oobLink; }
 }
