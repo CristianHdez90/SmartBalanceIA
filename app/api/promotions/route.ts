@@ -5,11 +5,14 @@ import { GroqPromotionFinder } from '@/src/infrastructure/groq-promotion-finder'
 import { NominatimGeocoder, OverpassNearbyStoreFinder } from '@/src/infrastructure/openstreetmap-location';
 import { AuthError, D1AuthRepository } from '@/src/infrastructure/d1-auth';
 import {database} from '@/src/infrastructure/database';
+import {isAllowedOrigin} from '@/src/infrastructure/request-origin';
+
+export const runtime='nodejs';
 
 function json(value:unknown,status=200){return Response.json(value,{status,headers:{'Cache-Control':'no-store'}})}
 
 export async function POST(request:Request){
-  if(request.headers.get('origin')!==new URL(request.url).origin)return json({error:'Origen no permitido.'},403);
+  if(!isAllowedOrigin(request))return json({error:'Origen no permitido.'},403);
   try{
     const db=database();
     await new D1AuthRepository(db).requireUser(request);

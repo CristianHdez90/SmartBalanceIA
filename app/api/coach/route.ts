@@ -6,6 +6,9 @@ import { D1LedgerRepository } from '@/src/infrastructure/d1-ledger';
 import { GroqFinancialCoach } from '@/src/infrastructure/groq-financial-coach';
 import { AuthError, D1AuthRepository } from '@/src/infrastructure/d1-auth';
 import {database} from '@/src/infrastructure/database';
+import {isAllowedOrigin} from '@/src/infrastructure/request-origin';
+
+export const runtime='nodejs';
 
 function json(data:unknown,status=200){return Response.json(data,{status,headers:{'Cache-Control':'no-store'}})}
 function errorResponse(error:unknown){
@@ -26,7 +29,7 @@ export async function GET(request:Request){
  }catch(error){return errorResponse(error)}
 }
 export async function POST(request:Request){
- if(request.headers.get('origin')!==new URL(request.url).origin)return json({error:'Origen no permitido.'},403);
+ if(!isAllowedOrigin(request))return json({error:'Origen no permitido.'},403);
  if(!process.env.GROQ_API_KEY?.trim())return json({error:'Falta configurar la clave de Groq API en el servidor para activar el chat.'},503);
  try{
   const text=await request.text();if(text.length>12000)return json({error:'La consulta es demasiado larga.'},413);
@@ -37,7 +40,7 @@ export async function POST(request:Request){
 }
 
 export async function DELETE(request:Request){
- if(request.headers.get('origin')!==new URL(request.url).origin)return json({error:'Origen no permitido.'},403);
+ if(!isAllowedOrigin(request))return json({error:'Origen no permitido.'},403);
  try{
   const db=database();const user=await new D1AuthRepository(db).requireUser(request);const raw=await request.text();if(raw.length>100)return json({error:'Solicitud inválida.'},400);
   const body=JSON.parse(raw);

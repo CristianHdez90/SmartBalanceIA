@@ -3,6 +3,9 @@ import {AuthError,clearSessionCookie,D1AuthRepository,normalizeEmail,sessionCook
 import {ResendAuthMailer} from '@/src/infrastructure/resend-auth-mailer';
 import {FirebaseAuthService,FirebaseError} from '@/src/infrastructure/firebase-auth';
 import {database} from '@/src/infrastructure/database';
+import {isAllowedOrigin} from '@/src/infrastructure/request-origin';
+
+export const runtime='nodejs';
 
 const email=z.string().trim().email().max(160).transform(normalizeEmail);
 const password=z.string().min(10).max(128).regex(/[a-záéíóúñ]/i,'Incluye una letra').regex(/[A-ZÁÉÍÓÚÑ]/,'Incluye una mayúscula').regex(/\d/,'Incluye un número');
@@ -24,7 +27,7 @@ function error(error:unknown){if(error instanceof ZodError)return json({error:'R
 
 export async function GET(request:Request){try{const repository=new D1AuthRepository(database());return json({user:await repository.session(request),needsBootstrap:(await repository.countAdmins())===0,local:local(request),authProvider:firebase()?'firebase':'local'})}catch(value){return error(value)}}
 export async function POST(request:Request){
- if(request.headers.get('origin')!==new URL(request.url).origin)return json({error:'Origen no permitido.'},403);
+ if(!isAllowedOrigin(request))return json({error:'Origen no permitido.'},403);
  try{
   const raw=await request.text();if(raw.length>3000)return json({error:'Solicitud demasiado larga.'},413);
   const input=command.parse(JSON.parse(raw));const repository=new D1AuthRepository(database());
@@ -52,4 +55,4 @@ export async function POST(request:Request){
   if(firebaseAuth)await firebaseAuth.confirmPasswordReset(input.token,input.password);else await repository.resetPassword(input.token,input.password);return json({message:'Contraseña actualizada. Ya puedes iniciar sesión.'});
  }catch(value){return error(value)}
 }
-export async function DELETE(request:Request){if(request.headers.get('origin')!==new URL(request.url).origin)return json({error:'Origen no permitido.'},403);try{await new D1AuthRepository(database()).logout(request);return json({ok:true},200,{'Set-Cookie':clearSessionCookie(request)})}catch(value){return error(value)}}
+export async function DELETE(request:Request){if(!isAllowedOrigin(request))return json({error:'Origen no permitido.'},403);try{await new D1AuthRepository(database()).logout(request);return json({ok:true},200,{'Set-Cookie':clearSessionCookie(request)})}catch(value){return error(value)}}
