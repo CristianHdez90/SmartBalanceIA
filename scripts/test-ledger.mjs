@@ -77,9 +77,12 @@ data=await service.execute(correctedIncome);assert.equal(totals(data).available,
 const lunch={action:'expense',id:crypto.randomUUID(),month:'2026-10',category:'Restaurante',amount:120,date:'2026-10-15',description:'Almuerzo'};
 data=await service.execute(lunch);assert.equal(data.expenses.length,1);assert.equal(totals(data).dailyExpenses,120);assert.equal(totals(data).available,380);
 data=await service.execute({...lunch,amount:150,description:'Almuerzo corregido'});assert.equal(data.expenses.length,1);assert.equal(data.expenses[0].description,'Almuerzo corregido');assert.equal(totals(data).available,350);
+const voiceExpenses=[{id:crypto.randomUUID(),category:'Gasolina',amount:80000,date:'2026-10-16',description:'Tanqueo'},{id:crypto.randomUUID(),category:'Mercado',amount:120000,date:'2026-10-16',description:'Compra de mercado'}];
+data=await service.execute({action:'expenses',month:'2026-10',expenses:voiceExpenses});assert.equal(data.expenses.length,3);assert.equal(totals(data).dailyExpenses,200150);
+await assert.rejects(()=>service.execute({action:'expenses',month:'2026-10',expenses:[...voiceExpenses,{...voiceExpenses[0],id:crypto.randomUUID(),date:'2026-11-01'}]}),/fechas deben/);assert.equal((await repo.read('2026-10')).expenses.length,3);
 await assert.rejects(()=>service.execute({...lunch,id:crypto.randomUUID(),date:'2026-11-01'}),/fecha debe/);
 await assert.rejects(()=>service.execute({...lunch,id:crypto.randomUUID(),category:'Categoría inventada'}));
-data=await service.execute({action:'removeExpense',month:'2026-10',id:lunch.id});assert.equal(data.expenses.length,0);assert.equal(totals(data).dailyExpenses,0);assert.equal(totals(data).available,500);
+data=await service.execute({action:'removeExpense',month:'2026-10',id:lunch.id});for(const expense of voiceExpenses)data=await service.execute({action:'removeExpense',month:'2026-10',id:expense.id});assert.equal(data.expenses.length,0);assert.equal(totals(data).dailyExpenses,0);assert.equal(totals(data).available,500);
 data=await service.execute({action:'removeMovement',month:'2026-10',id:correctedIncome.id});assert.equal(totals(data).available,0);
 assert.equal(paymentReport(reportItem,data.movements,'2026-10-16').status,'Vencido');
 assert.deepEqual(totals(await repo.read('2026-10')),totals(data));

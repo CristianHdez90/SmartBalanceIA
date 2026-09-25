@@ -31,5 +31,6 @@ export class D1LedgerRepository implements LedgerRepository{
  }
  async removeMovement(id:string,month:string){await this.db.prepare('DELETE FROM movements WHERE user_id=? AND id=? AND month=?').bind(this.userId,id,month).run()}
  async saveExpense(e:DailyExpense){await this.db.prepare(`INSERT INTO daily_expenses (user_id,id,month,category,amount,date,description) VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET category=excluded.category,amount=excluded.amount,date=excluded.date,description=excluded.description WHERE daily_expenses.user_id=excluded.user_id AND daily_expenses.month=excluded.month`).bind(this.userId,e.id,e.month,e.category,e.amount,e.date,e.description).run()}
+ async saveExpenses(expenses:DailyExpense[]){await this.db.batch(expenses.map(e=>this.db.prepare(`INSERT INTO daily_expenses (user_id,id,month,category,amount,date,description) VALUES (?,?,?,?,?,?,?) ON CONFLICT(id) DO UPDATE SET category=excluded.category,amount=excluded.amount,date=excluded.date,description=excluded.description WHERE daily_expenses.user_id=excluded.user_id AND daily_expenses.month=excluded.month`).bind(this.userId,e.id,e.month,e.category,e.amount,e.date,e.description)))}
  async removeExpense(id:string,month:string){await this.db.prepare('DELETE FROM daily_expenses WHERE user_id=? AND id=? AND month=?').bind(this.userId,id,month).run()}
 }
