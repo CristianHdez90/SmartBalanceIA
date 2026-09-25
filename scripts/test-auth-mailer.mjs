@@ -1,0 +1,15 @@
+import assert from 'node:assert/strict';
+import {execFileSync} from 'node:child_process';
+import {mkdirSync,readFileSync,writeFileSync} from 'node:fs';
+import {dirname,resolve} from 'node:path';
+import {pathToFileURL} from 'node:url';
+const output=resolve('.test-build-mailer');mkdirSync(output,{recursive:true});execFileSync('node',['node_modules/typescript/bin/tsc','src/infrastructure/resend-auth-mailer.ts','--target','ES2022','--module','ES2022','--moduleResolution','Bundler','--outDir',output,'--skipLibCheck'],{stdio:'inherit'});
+const {ResendAuthMailer}=await import(pathToFileURL(resolve(output,'resend-auth-mailer.js')));
+const requests=[];const fakeFetch=async(url,init)=>{requests.push({url,init});return new Response(JSON.stringify({id:'email_123'}),{status:200})};
+const mailer=new ResendAuthMailer({apiKey:'test-secret',from:'Mi Balance <cuentas@example.com>'},fakeFetch);
+await mailer.sendVerification('persona@example.com','Persona <Usuaria>','https://balance.example/?verify=abc','verify-user');
+await mailer.sendPasswordReset('persona@example.com','Persona','https://balance.example/?reset=def','reset-request');
+assert.equal(requests.length,2);assert.equal(requests[0].url,'https://api.resend.com/emails');assert.equal(requests[0].init.headers.Authorization,'Bearer test-secret');assert.equal(requests[0].init.headers['Idempotency-Key'],'verify-user');
+const activation=JSON.parse(requests[0].init.body);assert.deepEqual(activation.to,['persona@example.com']);assert.match(activation.html,/Persona &lt;Usuaria&gt;/);assert.doesNotMatch(activation.html,/Persona <Usuaria>/);assert.match(activation.text,/verify=abc/);
+const reset=JSON.parse(requests[1].init.body);assert.match(reset.subject,/Restablece/);assert.match(reset.html,/reset=def/);
+console.log('Auth mailer tests passed: endpoint, authorization, idempotency, escaping and links.');

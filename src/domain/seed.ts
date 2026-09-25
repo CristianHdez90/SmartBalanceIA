@@ -1,0 +1,21 @@
+// Transcripción de la imagen: un dato ausente se conserva como null.
+export const reference: [string, number | null, string, boolean, string | null][] = [
+ ['Crédito Vivienda 2699',2620000,'Créditos',false,null],
+ ['Crédito Express Fijo 3261',3314960,'Créditos',true,'2026-08-28'],
+ ['Crédito Vehículo',2500000,'Créditos',true,null],
+ ['Sistecrédito',402000,'Créditos',true,'2026-08-28'],
+ ['Tarjeta Crédito Chevignon 7874',300000,'Tarjetas',true,'2026-08-28'],
+ ['Tarjeta Crédito PepeGanga 2973',null,'Tarjetas',false,null],
+ ['Tarjeta Crédito Ame Expres Bancolombia',998317,'Tarjetas',true,'2026-08-28'],
+ ['Tarjeta Crédito Visa Oro Bancolombia',450141,'Tarjetas',true,'2026-08-28'],
+ ['Tarjeta Crédito BancoBogotá',300000,'Tarjetas',false,null],
+ ['Tarjeta Crédito Cencosud Colpatria',null,'Tarjetas',false,null],
+ ['Tarjeta Crédito Finandina',400000,'Tarjetas',false,null],
+ ['Tarjeta Crédito Falabella',325131,'Tarjetas',false,null],
+ ['Tarjeta Crédito NU',89000,'Tarjetas',true,'2026-08-28'],
+ ['Tarjeta Crédito Tuya',400000,'Tarjetas',false,null],
+ ['Administración Unidad',null,'Hogar',false,null],
+ ['Servicios Públicos',440000,'Hogar',false,null],
+ ['Cupo Addi',140299,'Créditos',true,'2026-08-28'],
+ ['Finesa Seguro Vehículo',353558,'Seguros',true,'2026-08-28'],
+];
