@@ -63,11 +63,14 @@ El importador lee `.wrangler/state`, mantiene los identificadores y copia usuari
 ## Despliegue en Vercel
 
 1. Crea la base en Turso y genera un token.
-2. Configura localmente las variables de Turso y ejecuta `npm run db:migrate`.
-3. Ejecuta `npm run db:import:d1` si deseas conservar los datos locales existentes.
-4. Sube el repositorio a GitHub e impórtalo en Vercel como proyecto Next.js.
-5. Registra las variables de entorno en **Production**, **Preview** y **Development**, según corresponda.
-6. Define `APP_PUBLIC_URL=https://tu-proyecto.vercel.app` y vuelve a desplegar.
+2. Conecta la base al proyecto en Vercel para que la integración inyecte `TURSO_DATABASE_URL` y `TURSO_AUTH_TOKEN`.
+3. Configura localmente las mismas variables y ejecuta `npm run db:migrate`.
+4. Ejecuta `npm run db:import:d1` si deseas conservar los datos locales existentes.
+5. Sube el repositorio a GitHub e impórtalo en Vercel como proyecto Next.js.
+6. Registra las demás variables de entorno en **Production**, **Preview** y **Development**, según corresponda.
+7. Define `APP_PUBLIC_URL=https://tu-proyecto.vercel.app` y vuelve a desplegar.
+
+El comando de compilación ejecuta las migraciones idempotentes antes de `next build`. Si Turso no está conectado al proyecto, el despliegue falla con un mensaje de configuración en lugar de publicar una aplicación sin base de datos.
 
 Variables del servidor:
 
