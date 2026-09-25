@@ -5,7 +5,7 @@ import { D1CoachRepository } from '@/src/infrastructure/d1-coach';
 import { D1LedgerRepository } from '@/src/infrastructure/d1-ledger';
 import { GroqFinancialCoach } from '@/src/infrastructure/groq-financial-coach';
 import { AuthError, D1AuthRepository } from '@/src/infrastructure/d1-auth';
-import {database} from '@/src/infrastructure/database';
+import {database,DatabaseError} from '@/src/infrastructure/database';
 import {isAllowedOrigin} from '@/src/infrastructure/request-origin';
 
 export const runtime='nodejs';
@@ -16,6 +16,7 @@ function errorResponse(error:unknown){
  if(error instanceof ZodError)return json({error:'Escribe una consulta de hasta 2000 caracteres y selecciona un mes válido.'},400);
  if(error instanceof CoachError)return json({error:error.message},error.status);
  if(error instanceof AuthError)return json({error:error.message},error.status);
+ if(error instanceof DatabaseError)return json({error:error.message,code:error.code},503);
  // Never log prompts, credentials or raw provider responses.
  console.error('Financial coach request failed');
  return json({error:'No se pudo completar la consulta. Tu mensaje se conserva; intenta nuevamente.'},503);

@@ -4,7 +4,7 @@ import { D1PromotionCache } from '@/src/infrastructure/d1-promotion-cache';
 import { GroqPromotionFinder } from '@/src/infrastructure/groq-promotion-finder';
 import { NominatimGeocoder, OverpassNearbyStoreFinder } from '@/src/infrastructure/openstreetmap-location';
 import { AuthError, D1AuthRepository } from '@/src/infrastructure/d1-auth';
-import {database} from '@/src/infrastructure/database';
+import {database,DatabaseError} from '@/src/infrastructure/database';
 import {isAllowedOrigin} from '@/src/infrastructure/request-origin';
 
 export const runtime='nodejs';
@@ -25,6 +25,7 @@ export async function POST(request:Request){
   }catch(error){
     if(error instanceof SyntaxError||error instanceof ZodError)return json({error:'Revisa la ubicación y selecciona un radio entre 1 y 15 km.'},400);
     if(error instanceof PromotionError||error instanceof AuthError)return json({error:error.message},error.status);
+    if(error instanceof DatabaseError)return json({error:error.message,code:error.code},503);
     console.error('Nearby promotions request failed');return json({error:'No se pudo completar la consulta de promociones. Intenta nuevamente.'},503);
   }
 }

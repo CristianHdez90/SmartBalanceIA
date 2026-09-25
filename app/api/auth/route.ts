@@ -2,7 +2,7 @@ import {z,ZodError} from 'zod';
 import {AuthError,clearSessionCookie,D1AuthRepository,normalizeEmail,sessionCookie} from '@/src/infrastructure/d1-auth';
 import {ResendAuthMailer} from '@/src/infrastructure/resend-auth-mailer';
 import {FirebaseAuthService,FirebaseError} from '@/src/infrastructure/firebase-auth';
-import {database} from '@/src/infrastructure/database';
+import {database,DatabaseError} from '@/src/infrastructure/database';
 import {isAllowedOrigin} from '@/src/infrastructure/request-origin';
 
 export const runtime='nodejs';
@@ -23,7 +23,7 @@ const local=(request:Request)=>['127.0.0.1','localhost','[::1]'].includes(new UR
 function mailer(){const apiKey=process.env.RESEND_API_KEY?.trim()??'',from=process.env.AUTH_EMAIL_FROM?.trim()??'';return apiKey&&from?new ResendAuthMailer({apiKey,from}):null}
 function firebase(){const apiKey=process.env.FIREBASE_WEB_API_KEY?.trim()??'',projectId=process.env.FIREBASE_PROJECT_ID?.trim()??'',serviceAccountEmail=process.env.FIREBASE_SERVICE_ACCOUNT_EMAIL?.trim()??'',serviceAccountPrivateKey=process.env.FIREBASE_SERVICE_ACCOUNT_PRIVATE_KEY?.trim()??'';return apiKey&&projectId?new FirebaseAuthService({apiKey,projectId,serviceAccountEmail,serviceAccountPrivateKey}):null}
 function publicUrl(request:Request){const configured=process.env.APP_PUBLIC_URL?.trim()??'';return (configured||new URL(request.url).origin).replace(/\/$/,'')}
-function error(error:unknown){if(error instanceof ZodError)return json({error:'Revisa el correo, nombre y contraseña. Usa mínimo 10 caracteres, una mayúscula y un número.'},400);if(error instanceof AuthError||error instanceof FirebaseError)return json({error:error.message},error.status);if(error instanceof Error)console.error('Authentication request failed',{name:error.name,message:error.message,stack:error.stack});else console.error('Authentication request failed',{type:typeof error});return json({error:'No fue posible completar la solicitud.'},503)}
+function error(error:unknown){if(error instanceof ZodError)return json({error:'Revisa el correo, nombre y contraseña. Usa mínimo 10 caracteres, una mayúscula y un número.'},400);if(error instanceof AuthError||error instanceof FirebaseError)return json({error:error.message},error.status);if(error instanceof DatabaseError)return json({error:error.message,code:error.code},503);if(error instanceof Error)console.error('Authentication request failed',{name:error.name,message:error.message,stack:error.stack});else console.error('Authentication request failed',{type:typeof error});return json({error:'No fue posible completar la solicitud.'},503)}
 
 export async function GET(request:Request){try{const repository=new D1AuthRepository(database());return json({user:await repository.session(request),needsBootstrap:(await repository.countAdmins())===0,local:local(request),authProvider:firebase()?'firebase':'local'})}catch(value){return error(value)}}
 export async function POST(request:Request){
