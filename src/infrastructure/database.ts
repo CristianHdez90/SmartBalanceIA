@@ -2,6 +2,11 @@ import {createClient,LibsqlError,type Client,type InValue,type ResultSet} from '
 
 export class DatabaseError extends Error{constructor(message:string,readonly code:string){super(message)}}
 
+export function validateDatabaseConfiguration(url:string,authToken:string,vercel=process.env.VERCEL==='1'){
+ if(vercel&&url.startsWith('file:'))throw new DatabaseError('Vercel no puede usar una base SQLite local porque sus archivos se reemplazan en cada despliegue. Configura TURSO_DATABASE_URL con una dirección libsql:// y TURSO_AUTH_TOKEN.','EPHEMERAL_DATABASE');
+ if(!url.startsWith('file:')&&!authToken)throw new DatabaseError('Falta configurar TURSO_AUTH_TOKEN en Vercel.','TOKEN_MISSING');
+}
+
 function databaseError(value:unknown){
  if(value instanceof DatabaseError)return value;
  if(value instanceof LibsqlError){
@@ -52,9 +57,9 @@ declare global{var __miBalanceDatabase:DatabaseClient|undefined}
 export function database():DatabaseClient{
  const url=process.env.TURSO_DATABASE_URL?.trim();
  if(!url)throw new DatabaseError('Falta configurar TURSO_DATABASE_URL en Vercel.','URL_MISSING');
+ const authToken=process.env.TURSO_AUTH_TOKEN?.trim()??'';
+ validateDatabaseConfiguration(url,authToken);
  if(!globalThis.__miBalanceDatabase){
-  const authToken=process.env.TURSO_AUTH_TOKEN?.trim();
-  if(!url.startsWith('file:')&&!authToken)throw new DatabaseError('Falta configurar TURSO_AUTH_TOKEN en Vercel.','TOKEN_MISSING');
   try{globalThis.__miBalanceDatabase=new TursoDatabase(createClient({url,...(authToken?{authToken}:{})}))}catch(value){throw databaseError(value)}
  }
  return globalThis.__miBalanceDatabase;

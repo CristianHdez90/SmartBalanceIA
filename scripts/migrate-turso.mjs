@@ -6,8 +6,10 @@ import {fileURLToPath} from 'node:url';
 const root=resolve(dirname(fileURLToPath(import.meta.url)),'..');
 const url=process.env.TURSO_DATABASE_URL?.trim();
 if(!url)throw new Error('Falta TURSO_DATABASE_URL.');
+if(process.env.VERCEL==='1'&&url.startsWith('file:'))throw new Error('Configuración insegura: Vercel no puede usar TURSO_DATABASE_URL=file:. Conecta una base Turso persistente con URL libsql://.');
 if(url.startsWith('file:'))await mkdir(resolve(root,dirname(url.slice(5))),{recursive:true});
 const authToken=process.env.TURSO_AUTH_TOKEN?.trim();
+if(!url.startsWith('file:')&&!authToken)throw new Error('Falta TURSO_AUTH_TOKEN para la base Turso configurada.');
 const client=createClient({url,...(authToken?{authToken}:{})});
 
 await client.execute(`CREATE TABLE IF NOT EXISTS _migrations (

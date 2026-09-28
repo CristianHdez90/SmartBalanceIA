@@ -70,6 +70,10 @@ El importador lee `.wrangler/state`, mantiene los identificadores y copia usuari
 6. Registra las demás variables de entorno en **Production**, **Preview** y **Development**, según corresponda.
 7. Define `APP_PUBLIC_URL=https://tu-proyecto.vercel.app` y vuelve a desplegar.
 
+Usa la misma base Turso para **Production** y, si deseas compartir los mismos usuarios durante las pruebas, también para **Preview**. Vercel mantiene variables separadas por entorno: una URL distinta apunta a otra base y mostrará otra lista de usuarios. La aplicación rechaza `TURSO_DATABASE_URL=file:...` dentro de Vercel porque el sistema de archivos del despliegue es temporal y se reemplaza al publicar cambios.
+
+Si una cuenta continúa en Firebase pero su perfil dejó de existir en Turso, el siguiente inicio de sesión vuelve a crear el perfil como pendiente. El administrador deberá aprobarlo nuevamente; esta recuperación no concede acceso automático ni reconstruye movimientos financieros ausentes.
+
 El comando de compilación ejecuta las migraciones idempotentes antes de `next build`. Si Turso no está conectado al proyecto, el despliegue falla con un mensaje de configuración en lugar de publicar una aplicación sin base de datos.
 
 Variables del servidor:

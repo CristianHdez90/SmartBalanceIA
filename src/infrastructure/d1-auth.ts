@@ -44,6 +44,10 @@ export class D1AuthRepository{
   return id;
  }
  async createFirebaseUser(email:string,displayName:string,firebaseUid:string){return this.createUser(email,displayName,token(),'user','pending',firebaseUid)}
+ async ensureFirebaseUser(email:string,displayName:string,firebaseUid:string){
+  if(await this.hasEmail(email))return false;
+  try{await this.createFirebaseUser(email,displayName,firebaseUid);return true}catch(value){if(await this.hasEmail(email))return false;throw value}
+ }
  async bootstrap(email:string,displayName:string,password:string){
   if(await this.countAdmins())throw new AuthError('El administrador inicial ya fue creado.',409);
   const id=await this.createUser(email,displayName,password,'admin','active');
