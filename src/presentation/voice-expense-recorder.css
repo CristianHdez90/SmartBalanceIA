@@ -147,11 +147,14 @@
   .voice-expense-dialog[data-slot="dialog-content"] {
     top: auto;
     bottom: 0;
-    left: 0;
-    width: 100%;
+    left: 8px;
+    right: 8px;
+    width: auto;
     max-width: none;
     max-height: 94dvh;
     transform: none;
+    translate: none !important;
+    box-sizing: border-box;
     border-right: 0;
     border-bottom: 0;
     border-left: 0;
