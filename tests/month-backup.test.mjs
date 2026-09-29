@@ -12,11 +12,15 @@ function load(path,dependencies={}){
  const module={exports:{}};new Function('require','module','exports',outputText)(name=>dependencies[name]??require(name),module,module.exports);return module.exports;
 }
 const finance=load('src/domain/finance.ts');
-const domain=load('src/domain/month-backup.ts',{'./finance':finance});
+const report=load('src/domain/payment-report.ts',{'./finance':finance});
+const domain=load('src/domain/month-backup.ts',{'./finance':finance,'./payment-report':report});
 const database=load('src/infrastructure/database.ts');
 const {MonthBackups}=load('src/infrastructure/month-backups.ts',{'../domain/month-backup':domain,'../domain/finance':finance});
-const report=load('src/domain/payment-report.ts',{'./finance':finance});
 const exports=load('src/infrastructure/month-export.ts',{'../domain/month-backup':domain,'../domain/finance':finance,'../domain/payment-report':report});
+const goalsDomain=load('src/domain/goals.ts');
+const goalsBackup=load('src/infrastructure/goal-backups.ts',{'../domain/goals':goalsDomain,'../domain/month-backup':domain});
+const {D1LedgerRepository}=load('src/infrastructure/d1-ledger.ts',{'../domain/finance':finance,'../domain/seed':{reference:[]}});
+const {ObligationHistory}=load('src/infrastructure/obligation-history.ts',{'../domain/payment-report':report});
 const sample=()=>domain.validateBackup({version:1,month:'2026-12',userId:'alice',exportedAt:'2026-12-20T12:00:00.000Z',
  obligations:[{id:'bill',user_id:'alice',month:'2026-12',name:"Cuota d'Ávila; prueba",category:'Créditos',amount:800,note:'Primera línea\nSegunda, con "comillas"',cutoff_date:null,due_date:'2026-12-15',series_id:'serie',cutoff_day:30,due_day:15,total_debt:10000,bank:'Banco',banking_url:'https://example.com/',interest_mv:1.5,interest_ea:null,recurring_amount:850}],
  movements:[{id:'income',user_id:'alice',month:'2026-12',kind:'income',obligation_id:null,amount:2000,date:'2026-12-01',description:'=SUM(1,1)'},{id:'payment',user_id:'alice',month:'2026-12',kind:'payment',obligation_id:'bill',amount:500,date:'2026-11-30',description:'Anticipado'}],
@@ -75,7 +79,7 @@ test('Excel exports typed values, dates, pending balance, filters and all sheets
  const b=sample();const csv=exports.exportCsv(b);
  assert.ok(csv.startsWith('\uFEFF'));assert.match(csv,/'=SUM/);assert.match(csv,/Primera línea\nSegunda, con ""comillas""/);
  const bytes=await exports.exportExcel(b),book=new ExcelJS.Workbook();await book.xlsx.load(bytes);
- assert.deepEqual(book.worksheets.map(s=>s.name),['Resumen','Obligaciones','Movimientos','Gastos diarios','Traslados']);
+ assert.deepEqual(book.worksheets.map(s=>s.name),['Resumen','Obligaciones','Movimientos','Gastos diarios','Traslados','Obligaciones trasladadas','Historial de estados']);
  const cell=(sheet,label)=>{const row=book.getWorksheet(sheet).getRow(1);let column;row.eachCell((c,n)=>{if(c.value===label)column=n;});return book.getWorksheet(sheet).getRow(2).getCell(column);};
  assert.equal(cell('Obligaciones','Saldo pendiente (COP)').value,300);assert.equal(cell('Obligaciones','Cuota recurrente (COP)').value,850);assert.equal(cell('Obligaciones','Interés M.V.').value,0.015);
  assert.equal(cell('Movimientos','Descripción').value,'=SUM(1,1)');assert.equal(cell('Movimientos','Descripción').type,ExcelJS.ValueType.String);
@@ -94,5 +98,65 @@ test('API enforces session, origin, original owner/month and reviewed restoratio
   const preview=await (await route.POST(req('alice',{action:'preview',sql}))).json();
   const restored=await route.POST(req('alice',{action:'restore',sql,revision:preview.revision}));assert.equal(restored.status,200);assert.equal((await restored.json()).month,'2026-12');
   const download=await route.GET(req('alice'));assert.equal(download.status,200);assert.match(download.headers.get('Cache-Control'),/no-store/);assert.match(download.headers.get('Content-Disposition'),/2026-12.sql/);assert.equal(domain.decodeBackup(await download.text()).movements.length,2);
+ }finally{client.close();}
+});
+
+test('Gastos diarios backup restores only expenses without changing obligations, payments or other months',async()=>{
+ const {client,db,alice}=await fixture();try{
+  await client.executeMultiple(domain.encodeBackup(sample()));
+  const expenseRepo=new MonthBackups(db,'alice','expenses');const backup=await expenseRepo.read('2026-12');
+  assert.equal(backup.obligations.length,0);assert.equal(backup.scope,'expenses');
+  const roundtrip=domain.decodeBackup(domain.encodeBackup(backup));
+  await client.execute("DELETE FROM daily_expenses WHERE id='expense'");
+  const preview=await expenseRepo.preview(roundtrip);await expenseRepo.restore(roundtrip,preview.revision);
+  const ledger=await alice.read('2026-12');assert.equal(ledger.movements.length,2);assert.equal(ledger.obligations.length,1);assert.equal(ledger.daily_expenses.length,1);
+  await assert.rejects(alice.preview(backup),/módulo/);
+ }finally{client.close();}
+});
+
+test('Metas backups include archived goals, restore independent of months and invalidate stale goal editors',async()=>{
+ const {client,db}=await fixture();try{
+  const id=crypto.randomUUID();await client.execute({sql:"INSERT INTO financial_goals(id,user_id,name,target,saved,due_date,icon,color,version,archived,created_at,updated_at) VALUES(?,'alice','Viaje',800,300,'2027-05-01','travel','indigo',4,1,1,1)",args:[id]});
+  const repo=new goalsBackup.GoalBackups(db,'alice'),backup=await repo.read(),sql=goalsBackup.encodeGoals(backup);
+  assert.deepEqual(goalsBackup.decodeGoals(sql),backup);assert.throws(()=>goalsBackup.decodeGoals(sql+'DELETE FROM users;'),domain.BackupError);
+  await client.execute('DELETE FROM financial_goals');const preview=await repo.preview(backup);await repo.restore(backup,preview.revision);const restored=await repo.read();
+  assert.equal(restored.goals[0].saved,300);assert.equal(restored.goals[0].archived,1);assert.ok(restored.goals[0].version>4);
+  assert.equal((await repo.restore(backup,preview.revision)).unchanged,true);
+  await assert.rejects(new goalsBackup.GoalBackups(db,'bob').preview(backup),domain.BackupError);
+  const book=new ExcelJS.Workbook();await book.xlsx.load(await goalsBackup.goalsExcel(backup));assert.equal(book.getWorksheet('Metas').getCell('D2').value,300);assert.match(goalsBackup.goalsCsv(backup),/Archivada/);
+ }finally{client.close();}
+});
+
+test('carry moves only unpaid debt, adds to next quota, preserves cash/base recurrence, retries once and blocks overpayment',async()=>{
+ const {client,db}=await fixture();try{
+  await client.executeMultiple(domain.encodeBackup(sample()));const repo=new D1LedgerRepository(db,'alice',false);const id=crypto.randomUUID();
+  await repo.carryObligation(id,'2026-12','bill','Pérdida temporal de ingreso');await repo.carryObligation(id,'2026-12','bill','Pérdida temporal de ingreso');
+  const source=await repo.read('2026-12'),next=await repo.read('2027-01');
+  assert.equal(source.obligations[0].transferredAmount,300);assert.equal(finance.status(source.obligations[0],source.movements),'Trasladado');assert.equal(finance.totals(source).pending,0);
+  const receivedBackup=await new MonthBackups(db,'alice').read('2027-01');assert.equal(receivedBackup.obligation_carries.length,1);assert.equal(finance.totals(domain.toLedger(receivedBackup)).committed,1150);
+  assert.equal(next.obligations[0].amount,1150);assert.equal(next.obligations[0].receivedAmount,300);assert.equal(source.carries[0].reason,'Pérdida temporal de ingreso');assert.equal(source.carries.length,1);
+  assert.equal(finance.totals(source).available,700);assert.equal(finance.totals(next).available,700);
+  await assert.rejects(repo.addMovement({id:crypto.randomUUID(),month:'2026-12',kind:'payment',obligationId:'bill',amount:1,date:'2026-12-20',description:'Exceso'}));
+  await repo.addMovement({id:crypto.randomUUID(),month:'2027-01',kind:'payment',obligationId:next.obligations[0].id,amount:1150,date:'2027-01-10',description:'Pago total'});
+  assert.equal(finance.totals(await repo.read('2027-01')).pending,0);
+  await repo.initialize('2027-02');assert.equal((await repo.read('2027-02')).obligations[0].amount,850);
+  await assert.rejects(new D1LedgerRepository(db,'bob',false).carryObligation(crypto.randomUUID(),'2026-12','bill','Ajena'),finance.LedgerError);
+  const backupRepo=new MonthBackups(db,'alice'),backup=await backupRepo.read('2026-12');const restored=domain.decodeBackup(domain.encodeBackup(backup));assert.equal(restored.obligation_carries[0].amount,300);assert.equal(finance.totals(domain.toLedger(restored)).pending,0);
+ }finally{client.close();}
+});
+
+test('state history preserves effective dates, skipped time thresholds, corrections and reversals without duplicate observations',async()=>{
+ const {client,db}=await fixture();try{
+  await client.executeMultiple(domain.encodeBackup({...sample(),movements:[]}));const repo=new D1LedgerRepository(db,'alice',false),history=new ObligationHistory(db,'alice');
+  await history.sync(await repo.read('2026-12'),'2026-12','Paso del tiempo','2026-12-01');
+  await history.sync(await repo.read('2026-12'),'2026-12','Paso del tiempo','2026-12-16');
+  let ledger=await repo.read('2026-12');assert.deepEqual(ledger.history.map(e=>e.to_status),['Vencido','Próximo a vencer','Pendiente']);assert.equal(ledger.history[0].effective_date,'2026-12-16');assert.equal(ledger.history[1].effective_date,'2026-12-08');
+  const payment={id:crypto.randomUUID(),month:'2026-12',kind:'payment',obligationId:'bill',amount:800,date:'2026-12-18',description:'Pago tardío'};
+  await repo.addMovement(payment);await history.sync(await repo.read('2026-12'),'2026-12','Registro de pago','2026-12-20');
+  await repo.updatePaymentDate(payment.id,'2026-12','2026-12-14');await history.sync(await repo.read('2026-12'),'2026-12','Corrección de fecha','2026-12-20');
+  await repo.removeMovement(payment.id,'2026-12');await history.sync(await repo.read('2026-12'),'2026-12','Reversión de pago','2026-12-20');
+  await history.sync(await repo.read('2026-12'),'2026-12','Paso del tiempo','2026-12-20');
+  ledger=await repo.read('2026-12');assert.equal(ledger.history.length,6);assert.ok(ledger.history.some(e=>e.to_status==='Pagado fuera de plazo'&&e.effective_date==='2026-12-18'));assert.ok(ledger.history.some(e=>e.to_status==='Cumplido a tiempo'&&e.effective_date==='2026-12-14'));assert.equal(ledger.history[0].cause,'Reversión de pago');
+  const backup=await new MonthBackups(db,'alice').read('2026-12');assert.equal(domain.decodeBackup(domain.encodeBackup(backup)).obligation_history.length,6);
  }finally{client.close();}
 });

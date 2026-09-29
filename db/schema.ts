@@ -59,3 +59,10 @@ export const balanceTransfers = sqliteTable('balance_transfers', {
  id:text('id').primaryKey().notNull(),userId:text('user_id').notNull().references(()=>users.id),
  fromMonth:text('from_month').notNull(),toMonth:text('to_month').notNull(),amount:integer('amount').notNull(),createdAt:integer('created_at').notNull(),
 },t=>[index('idx_balance_transfers_from').on(t.userId,t.fromMonth),index('idx_balance_transfers_to').on(t.userId,t.toMonth),check('transfer_amount_valid',sql`${t.amount} > 0 AND ${t.amount} <= 999999999999`),check('transfer_next_month',sql`${t.toMonth} = strftime('%Y-%m',${t.fromMonth} || '-01','+1 month')`)]);
+
+export const obligationCarries=sqliteTable('obligation_carries',{
+ id:text('id').primaryKey().notNull(),userId:text('user_id').notNull().references(()=>users.id),sourceId:text('source_id').notNull(),targetId:text('target_id').notNull(),fromMonth:text('from_month').notNull(),toMonth:text('to_month').notNull(),amount:integer('amount').notNull(),reason:text('reason').notNull(),createdAt:integer('created_at').notNull(),
+},t=>[index('idx_obligation_carries_source').on(t.userId,t.sourceId),index('idx_obligation_carries_target').on(t.userId,t.targetId),check('obligation_carry_amount',sql`${t.amount}>0 AND ${t.amount}<=999999999999`),check('obligation_carry_month',sql`${t.toMonth}=strftime('%Y-%m',${t.fromMonth}||'-01','+1 month')`)]);
+export const obligationHistory=sqliteTable('obligation_history',{
+ id:text('id').primaryKey().notNull(),userId:text('user_id').notNull().references(()=>users.id),obligationId:text('obligation_id').notNull(),month:text('month').notNull(),fromStatus:text('from_status'),toStatus:text('to_status').notNull(),effectiveDate:text('effective_date').notNull(),recordedAt:integer('recorded_at').notNull(),cause:text('cause').notNull(),basis:text('basis').notNull(),
+},t=>[index('idx_obligation_history_month').on(t.userId,t.month,t.recordedAt)]);

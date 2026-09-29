@@ -8,7 +8,7 @@ import { database, DatabaseError } from '@/src/infrastructure/database';
 import { isAllowedOrigin } from '@/src/infrastructure/request-origin';
 export const runtime='nodejs';
 const noStore={'Cache-Control':'private, no-store','X-Content-Type-Options':'nosniff'};
-async function repository(request:Request){const db=database();const user=await new D1AuthRepository(db).requireUser(request);return new MonthBackups(db,user.id);}
+async function repository(request:Request){const db=database();const user=await new D1AuthRepository(db).requireUser(request);const scope=z.enum(['ledger','expenses']).parse(new URL(request.url).searchParams.get('scope')??'ledger');return new MonthBackups(db,user.id,scope);}
 function failure(error:unknown){
  if(error instanceof AuthError||error instanceof BackupError)return Response.json({error:error.message},{status:error.status,headers:noStore});
  if(error instanceof ZodError||error instanceof SyntaxError)return Response.json({error:'Revisa el mes, formato o archivo de respaldo seleccionado.'},{status:400,headers:noStore});

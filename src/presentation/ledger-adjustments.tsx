@@ -2,11 +2,19 @@
 import { useState } from 'react';
 import { ArrowRightLeft, Pencil } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
-import { followingMonth, money, type Ledger, type Movement } from '@/src/domain/finance';
+import { followingMonth, money, paidFor, type Ledger, type Movement, type Obligation } from '@/src/domain/finance';
 import { toast } from 'sonner';
 
 export const monthName = (month:string) => new Intl.DateTimeFormat('es-CO',{month:'long',year:'numeric'}).format(new Date(month+'-15T12:00:00'));
 type Save = (payload:unknown)=>Promise<Ledger>;
+export function CarryObligation({obligation,ledger,save,onSaved,disabled}:{obligation:Obligation;ledger:Ledger;save:Save;onSaved:(ledger:Ledger)=>void;disabled:boolean}){
+ const [id,setId]=useState<string|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
+ const pending=(obligation.amount??0)-paidFor(obligation.id,ledger.movements)-(obligation.transferredAmount??0),next=followingMonth(obligation.month);
+ if(obligation.amount===null||pending<=0)return null;
+ return <><button className="icon-button carry-obligation-button" disabled={disabled||next>'2099-12'} aria-label={'Trasladar obligación '+obligation.name+' al siguiente mes'} title="Trasladar saldo pendiente al siguiente mes" onClick={()=>{setId(crypto.randomUUID());setError('');}}><ArrowRightLeft size={16}/></button>
+ <Dialog open={!!id} onOpenChange={v=>{if(!v&&!busy)setId(null);}}><DialogContent className="ledger-adjustment-dialog"><DialogTitle>Trasladar obligación al siguiente mes</DialogTitle><DialogDescription>{obligation.name}. El saldo pendiente se sumará a la cuota de {monthName(next)}. Los pagos ya registrados permanecerán en {monthName(obligation.month)}.</DialogDescription><form onSubmit={async e=>{e.preventDefault();if(!id||busy)return;const reason=new FormData(e.currentTarget).get('reason');setBusy(true);setError('');try{onSaved(await save({action:'carryObligation',id,month:obligation.month,obligationId:obligation.id,reason}));setId(null);toast.success('Obligación trasladada a '+monthName(next));}catch(error){setError((error as Error).message);}finally{setBusy(false);}}}>
+ <div className="transfer-explanation"><span>Saldo que se sumará al siguiente mes</span><strong>{money(pending)}</strong><p>Se registrará como trasladado, sin marcarlo como pagado ni descontarlo del disponible.</p></div><label>Motivo de no cumplir el pago<textarea name="reason" minLength={3} maxLength={500} required disabled={busy} placeholder="Describe por qué debes aplazar este saldo" rows={3}/></label>{error&&<p className="error" role="alert">{error}</p>}<div className="form-actions"><button type="button" className="secondary" disabled={busy} onClick={()=>setId(null)}>Cancelar</button><button className="primary" disabled={busy}>{busy?'Trasladando…':'Trasladar obligación'}</button></div></form></DialogContent></Dialog></>;
+}
 export function TransferBalance({month,available,disabled,save,onSaved}:{month:string;available:number;disabled:boolean;save:Save;onSaved:(ledger:Ledger)=>void}) {
  const [id,setId]=useState<string|null>(null);
  const [busy,setBusy]=useState(false);

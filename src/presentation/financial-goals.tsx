@@ -4,6 +4,7 @@ import { useEffect, useState, type CSSProperties, type FormEvent } from 'react';
 import { Plus, Pencil, Archive, RotateCcw, Sparkles, LoaderCircle, RefreshCw } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { goalIcons, goalColors, goalProgress, type FinancialGoal } from '@/src/domain/goals';
+import MonthlyBackup from './monthly-backup';
 import { money } from '@/src/domain/finance';
 
 type Editor = { id: string; goal?: FinancialGoal; contribution?: boolean };
@@ -50,6 +51,7 @@ export default function FinancialGoals({ onCoach }: { onCoach: () => void }) {
   const visible = goals.filter(goal => Boolean(goal.archived) === archived);
   return <div className="financial-goals">
     <div className="page-heading"><div><h1>Metas financieras</h1><p className="muted">Tus objetivos de ahorro e inversión.</p></div><button className="primary" disabled={loading || saving || !!error} onClick={() => open()}><Plus size={18}/>Nueva meta</button></div>
+    <MonthlyBackup scope="goals" month={new Date().toISOString().slice(0,7)} disabled={loading||saving||!!error} onRestored={()=>void reload()}/>
     <div className="goals-toolbar"><div role="group" aria-label="Mostrar metas"><button aria-pressed={!archived} onClick={() => setArchived(false)}>Activas</button><button aria-pressed={archived} onClick={() => setArchived(true)}>Archivadas</button></div><button className="text-button" disabled={loading || saving} onClick={() => void reload()}><RefreshCw size={15}/>Actualizar</button></div>
     {error && <p className="error" role="alert">{error}<button className="secondary" disabled={loading || saving} onClick={() => void reload()}>Reintentar</button></p>}
     {notice && <p className="goals-notice" role="status">{notice}</p>}

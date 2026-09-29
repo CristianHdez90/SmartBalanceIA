@@ -10,6 +10,8 @@ const expense=z.object({id:z.string().uuid(),category:z.enum(dailyExpenseCategor
 export const commandSchema = z.discriminatedUnion('action',[
  z.object({action:z.literal('transferBalance'),month:monthSchema,id:z.string().uuid(),amount}),
  z.object({action:z.literal('updatePaymentDate'),month:monthSchema,id:z.string().min(1).max(200),date}),
+ z.object({action:z.literal('carryObligation'),month:monthSchema,id:z.string().uuid(),obligationId:z.string().min(1).max(300),reason:z.string().trim().min(3).max(500)}),
+ z.object({action:z.literal('reconcile'),month:monthSchema}),
  z.object({action:z.literal('initialize'),month:monthSchema}),
  z.object({action:z.literal('movement'),month:monthSchema,id:z.string().uuid(),kind:z.enum(['income','payment']),obligationId:z.string().max(200).nullable(),amount,date,description:z.string().trim().min(1).max(160)}),
  z.object({action:z.literal('obligation'),applyFutureAmount:z.boolean().default(false),month:monthSchema,id:z.string().min(1).max(200),name:z.string().trim().min(1).max(120),category:z.enum(['Créditos','Tarjetas','Hogar','Seguros','Otros']),amount:amount.nullable(),note:z.string().max(300),cutoffDate:date.nullable().default(null),dueDate:date.nullable().default(null),cutoffDay:day,dueDay:day,totalDebt:z.number().int().min(0).max(999999999999).nullable().default(null),bank:z.string().trim().max(120).default(''),bankingUrl,interestMV:rate,interestEA:rate}),
@@ -21,6 +23,7 @@ export const commandSchema = z.discriminatedUnion('action',[
 export class LedgerService {
  constructor(private readonly repository: LedgerRepository) {}
  async execute(input: unknown) { const c = commandSchema.parse(input);
+  if(c.action === 'carryObligation') {if(!monthSchema.safeParse(followingMonth(c.month)).success)throw new LedgerError('Mes de destino fuera del rango permitido.');await this.repository.carryObligation(c.id,c.month,c.obligationId,c.reason);}
   if(c.action === 'initialize') await this.repository.initialize(c.month);
   if(c.action === 'movement') { if(c.kind==='income' && !c.date.startsWith(c.month)) throw new Error('La fecha debe pertenecer al mes seleccionado.'); if(c.kind === 'payment' && !c.obligationId) throw new Error('Selecciona una obligación.'); await this.repository.addMovement({...c,obligationId:c.kind === 'income' ? null : c.obligationId}); }
   if(c.action === 'transferBalance') { const next=followingMonth(c.month); if(!monthSchema.safeParse(next).success) throw new LedgerError('El mes de destino está fuera del rango permitido.'); await this.repository.transferBalance(c.id,c.month,next,c.amount); }
