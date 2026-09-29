@@ -10,6 +10,7 @@
     "build": "node --env-file-if-exists=.env.local scripts/migrate-turso.mjs && next build",
     "start": "next start -p 8787",
     "lint": "eslint . --ignore-pattern .next",
+    "test:goals": "node --test tests/financial-goals.test.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node --env-file-if-exists=.env.local scripts/migrate-turso.mjs",
     "db:import:d1": "node --env-file-if-exists=.env.local scripts/import-d1-to-turso.mjs"

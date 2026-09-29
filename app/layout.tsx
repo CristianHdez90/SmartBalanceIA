@@ -4,6 +4,7 @@ import "../src/presentation/voice-expense-recorder.css";
 import "../src/presentation/responsive.css";
 import "../src/presentation/finance-chat.css";
 import "../src/presentation/smart-balance.css";
+import "../src/presentation/financial-goals.css";
 
 export const metadata: Metadata = {
   title: "Mi Balance · Obligaciones e ingresos",

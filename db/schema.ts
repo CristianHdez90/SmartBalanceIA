@@ -1,4 +1,5 @@
-import { sqliteTable, text, integer, real, index } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, index, check } from 'drizzle-orm/sqlite-core';
+import { sql } from 'drizzle-orm';
 export const coachTurns = sqliteTable('coach_turns', {
  userId:text('user_id').notNull().default('legacy'),
  id:text('id').primaryKey(), conversationId:text('conversation_id').notNull(), month:text('month').notNull(),
@@ -42,3 +43,14 @@ export const passwordResetRequests=sqliteTable('password_reset_requests',{
 export const authEvents=sqliteTable('auth_events',{
  id:text('id').primaryKey(),eventKey:text('event_key').notNull(),kind:text('kind').notNull(),createdAt:integer('created_at').notNull(),
 },t=>[index('idx_auth_events_key_time').on(t.eventKey,t.createdAt)]);
+
+export const financialGoals = sqliteTable('financial_goals', {
+ id: text('id').primaryKey().notNull(), userId: text('user_id').notNull().references(() => users.id),
+ name: text('name').notNull(), target: integer('target').notNull(), saved: integer('saved').notNull().default(0),
+ dueDate: text('due_date').notNull(), icon: text('icon').notNull(), color: text('color').notNull(),
+ version: integer('version').notNull().default(1), archived: integer('archived').notNull().default(0),
+ createdAt: integer('created_at').notNull(), updatedAt: integer('updated_at').notNull(),
+}, t => [index('idx_financial_goals_user').on(t.userId, t.archived, t.dueDate),
+ check('goal_target_valid', sql`${t.target} > 0 AND ${t.target} <= 999999999999`),
+ check('goal_saved_valid', sql`${t.saved} >= 0 AND ${t.saved} <= 999999999999`),
+ check('goal_archived_valid', sql`${t.archived} IN (0,1)`)]);
