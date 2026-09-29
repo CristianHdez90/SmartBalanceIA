@@ -13,7 +13,9 @@
     "test:goals": "node --test tests/financial-goals.test.mjs",
     "db:generate": "drizzle-kit generate",
     "db:migrate": "node --env-file-if-exists=.env.local scripts/migrate-turso.mjs",
-    "db:import:d1": "node --env-file-if-exists=.env.local scripts/import-d1-to-turso.mjs"
+    "db:import:d1": "node --env-file-if-exists=.env.local scripts/import-d1-to-turso.mjs",
+    "test:ledger": "node --test tests/ledger-adjustments.test.mjs",
+    "test:backups": "node --test tests/month-backup.test.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -26,6 +28,7 @@
     "date-fns": "^4.4.0",
     "drizzle-orm": "0.45.2",
     "embla-carousel-react": "^8.6.0",
+    "exceljs": "4.4.0",
     "input-otp": "^1.4.2",
     "lucide-react": "^1.31.0",
     "next": "16.3.4",

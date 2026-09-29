@@ -11,8 +11,6 @@ export const balanceSections = [
   { id: 'obligations', label: 'Obligaciones', glyph: '↕' },
   { id: 'expenses', label: 'Gastos diarios', glyph: '◎' },
   { id: 'goals', label: 'Metas', glyph: '◇' },
-  { id: 'movements', label: 'Movimientos', glyph: '↔' },
-  { id: 'report', label: 'Reporte de pagos', glyph: '▤' },
   { id: 'coach', label: 'Asistente IA', glyph: '✦' },
   { id: 'promotions', label: 'Promociones', glyph: '📍' },
 ];

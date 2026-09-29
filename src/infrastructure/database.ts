@@ -1,4 +1,4 @@
-import {createClient,LibsqlError,type Client,type InValue,type ResultSet} from '@libsql/client';
+import {createClient,LibsqlError,type Client,type Transaction,type InValue,type ResultSet} from '@libsql/client';
 
 export class DatabaseError extends Error{constructor(message:string,readonly code:string){super(message)}}
 
@@ -32,13 +32,14 @@ export interface DatabaseStatement{
 export interface DatabaseClient{
  prepare(sql:string):DatabaseStatement;
  batch(statements:DatabaseStatement[]):Promise<DatabaseResult[]>;
+ transaction<T>(work:(db:DatabaseClient)=>Promise<T>):Promise<T>;
 }
 
 function rows<T>(result:ResultSet){return result.rows.map(row=>Object.fromEntries(result.columns.map(column=>[column,row[column]])) as T)}
 function output<T=Record<string,unknown>>(result:ResultSet):DatabaseResult<T>{return {results:rows<T>(result),meta:{changes:result.rowsAffected}}}
 
 class TursoStatement implements DatabaseStatement{
- constructor(private readonly client:Client,private readonly sql:string,private readonly args:InValue[]=[]){ }
+ constructor(private readonly client:Pick<Client,'execute'>,private readonly sql:string,private readonly args:InValue[]=[]){ }
  bind(...values:InValue[]){return new TursoStatement(this.client,this.sql,values)}
  async first<T=Record<string,unknown>>(){return (await this.all<T>()).results[0]??null}
  async all<T=Record<string,unknown>>(){try{return output<T>(await this.client.execute(this.toQuery()))}catch(value){throw databaseError(value)}}
@@ -46,10 +47,16 @@ class TursoStatement implements DatabaseStatement{
  toQuery(){return {sql:this.sql,args:this.args}}
 }
 
-class TursoDatabase implements DatabaseClient{
- constructor(private readonly client:Client){}
+export class TursoDatabase implements DatabaseClient{
+ constructor(private readonly client:Client|Transaction){}
  prepare(sql:string){return new TursoStatement(this.client,sql)}
- async batch(statements:DatabaseStatement[]){try{return (await this.client.batch(statements.map(statement=>statement.toQuery()),'write')).map(result=>output(result))}catch(value){throw databaseError(value)}}
+ async batch(statements:DatabaseStatement[]){try{const queries=statements.map(statement=>statement.toQuery());const result='transaction' in this.client?await this.client.batch(queries,'write'):await this.client.batch(queries);return result.map(result=>output(result))}catch(value){throw databaseError(value)}}
+ async transaction<T>(work:(db:DatabaseClient)=>Promise<T>):Promise<T>{
+  if(!('transaction' in this.client))return work(this);
+  const tx=await this.client.transaction('write');
+  try{const result=await work(new TursoDatabase(tx));await tx.commit();return result;}
+  finally{tx.close();}
+ }
 }
 
 declare global{var __miBalanceDatabase:DatabaseClient|undefined}
@@ -59,7 +66,7 @@ export function database():DatabaseClient{
  if(!url)throw new DatabaseError('Falta configurar TURSO_DATABASE_URL en Vercel.','URL_MISSING');
  const authToken=process.env.TURSO_AUTH_TOKEN?.trim()??'';
  validateDatabaseConfiguration(url,authToken);
- if(!globalThis.__miBalanceDatabase){
+ if(!globalThis.__miBalanceDatabase?.transaction){
   try{globalThis.__miBalanceDatabase=new TursoDatabase(createClient({url,...(authToken?{authToken}:{})}))}catch(value){throw databaseError(value)}
  }
  return globalThis.__miBalanceDatabase;

@@ -1,15 +1,34 @@
-import type {LedgerRepository,Ledger,Movement,Obligation,DailyExpense} from '../domain/finance';
-import {dateForDay} from '../domain/finance';
+import type {LedgerRepository,Ledger,Movement,Obligation,DailyExpense,BalanceTransfer} from '../domain/finance';
+import {dateForDay,LedgerError} from '../domain/finance';
 import {reference} from '../domain/seed';
 import type {DatabaseClient} from './database';
 
 export class D1LedgerRepository implements LedgerRepository{
  constructor(private readonly db:DatabaseClient,private readonly userId='legacy',private readonly seedReference=true){}
- async read(month:string):Promise<Ledger>{const [o,m,e]=await this.db.batch([
+ async read(month:string):Promise<Ledger>{const [o,m,e,t]=await this.db.batch([
   this.db.prepare('SELECT id,month,name,category,amount,note,cutoff_date AS cutoffDate,due_date AS dueDate,series_id AS seriesId,cutoff_day AS cutoffDay,due_day AS dueDay,total_debt AS totalDebt,bank,banking_url AS bankingUrl,interest_mv AS interestMV,interest_ea AS interestEA FROM obligations WHERE user_id=? AND month=? ORDER BY rowid').bind(this.userId,month),
   this.db.prepare('SELECT id,month,kind,obligation_id AS obligationId,amount,date,description FROM movements WHERE user_id=? AND month=? ORDER BY date DESC,rowid DESC').bind(this.userId,month),
-  this.db.prepare('SELECT id,month,category,amount,date,description FROM daily_expenses WHERE user_id=? AND month=? ORDER BY date DESC,rowid DESC').bind(this.userId,month)
- ]);return {obligations:(o.results as unknown as Obligation[]).map(item=>({...item,cutoffDate:item.cutoffDay!=null?dateForDay(month,item.cutoffDay):item.cutoffDate,dueDate:item.dueDay!=null?dateForDay(month,item.dueDay):item.dueDate})),movements:m.results as unknown as Movement[],expenses:e.results as unknown as DailyExpense[]}}
+  this.db.prepare('SELECT id,month,category,amount,date,description FROM daily_expenses WHERE user_id=? AND month=? ORDER BY date DESC,rowid DESC').bind(this.userId,month),
+  this.db.prepare("SELECT id,from_month AS fromMonth,to_month AS toMonth,amount,created_at AS createdAt,CASE WHEN to_month=? THEN 'incoming' ELSE 'outgoing' END AS direction FROM balance_transfers WHERE user_id=? AND (from_month=? OR to_month=?) ORDER BY created_at DESC,id").bind(month,this.userId,month,month)
+ ]);return {obligations:(o.results as unknown as Obligation[]).map(item=>({...item,cutoffDate:item.cutoffDay!=null?dateForDay(month,item.cutoffDay):item.cutoffDate,dueDate:item.dueDay!=null?dateForDay(month,item.dueDay):item.dueDate})),movements:m.results as unknown as Movement[],expenses:e.results as unknown as DailyExpense[],transfers:t.results as unknown as BalanceTransfer[]}}
+ async updatePaymentDate(id:string,month:string,date:string){
+  const result=await this.db.prepare("UPDATE movements SET date=? WHERE user_id=? AND id=? AND month=? AND kind='payment'").bind(date,this.userId,id,month).run();
+  if(!result.meta.changes) throw new LedgerError('El pago ya no está disponible. Actualiza los movimientos.');
+ }
+ async transferBalance(id:string,month:string,toMonth:string,amount:number){
+  // One atomic insert represents both sides and rechecks available funds under the write lock.
+  const result=await this.db.prepare(`INSERT OR IGNORE INTO balance_transfers (id,user_id,from_month,to_month,amount,created_at)
+   SELECT ?,?,?,?,?,? WHERE ? <=
+   COALESCE((SELECT SUM(CASE WHEN kind='income' THEN amount ELSE -amount END) FROM movements WHERE user_id=? AND month=?),0)
+   - COALESCE((SELECT SUM(amount) FROM daily_expenses WHERE user_id=? AND month=?),0)
+   + COALESCE((SELECT SUM(CASE WHEN to_month=? THEN amount ELSE -amount END) FROM balance_transfers WHERE user_id=? AND (from_month=? OR to_month=?)),0)
+  `).bind(id,this.userId,month,toMonth,amount,Date.now(),amount,this.userId,month,this.userId,month,month,this.userId,month,month).run();
+  if(!result.meta.changes){
+   const existing=await this.db.prepare('SELECT amount,to_month AS toMonth FROM balance_transfers WHERE id=? AND user_id=? AND from_month=?').bind(id,this.userId,month).first<{amount:number;toMonth:string}>();
+   if(existing?.amount===amount && existing.toMonth===toMonth)return;
+   throw new LedgerError('No se pudo trasladar: el saldo disponible cambió o el importe supera el disponible. Actualiza el mes e intenta nuevamente.');
+  }
+ }
  async initialize(month:string){
   if(this.seedReference){const existing=await this.db.prepare('SELECT id FROM obligations WHERE user_id=? AND month=? LIMIT 1').bind(this.userId,'2026-08').first();if(!existing){const statements=reference.flatMap(([name,amount,category,paid,date],i)=>{const id=this.userId==='legacy'?`2026-08-${i}`:`${this.userId}:2026-08-${i}`,movementId=this.userId==='legacy'?`import-${i}`:`${this.userId}:import-${i}`;const rows=[this.db.prepare('INSERT OR IGNORE INTO obligations (user_id,id,month,name,category,amount,note,series_id,recurring_amount) VALUES (?,?,?,?,?,?,?,?,?)').bind(this.userId,id,'2026-08',name,category,amount,'Importado de tu imagen',id,amount)];if(paid)rows.push(this.db.prepare('INSERT OR IGNORE INTO movements (user_id,id,month,kind,obligation_id,amount,date,description) VALUES (?,?,?,?,?,?,?,?)').bind(this.userId,movementId,'2026-08','payment',id,amount,date,'Pago registrado en la imagen'));return rows});await this.db.batch(statements)}}
   const exists=await this.db.prepare('SELECT id FROM obligations WHERE user_id=? AND month=? LIMIT 1').bind(this.userId,month).first();if(exists)return;

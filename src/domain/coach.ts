@@ -35,7 +35,7 @@ export function financialContext(ledger: Ledger, month: string, date: string) {
   // Only fixed descriptive labels are shared; omit raw names, IDs, numbers and notes.
   return {
     month, currency: 'COP', evaluatedOn: date,
-    recordedIncome: sums.income, knownMonthlyObligations: sums.committed,
+    carriedBalanceReceived: sums.incoming, balanceCarriedForward: sums.outgoing, recordedIncome: sums.income, knownMonthlyObligations: sums.committed,
     recordedPayments: sums.paid, recordedDailyExpenses:sums.dailyExpenses, pendingKnownAmounts: sums.pending, recordedAvailable: sums.available,
     debtCoverage: { recordedDebts:debts.length, knownTotalDebt:debts.reduce((sum,o)=>sum+(o.totalDebt??0),0), missingTotalDebt:debts.filter(o=>o.totalDebt==null).length, missingInterestRate:debts.filter(o=>o.interestMV==null&&o.interestEA==null).length },
     dailyExpensesByCategory:Object.entries(ledger.expenses.reduce<Record<string,number>>((result,expense)=>{result[expense.category]=(result[expense.category]??0)+expense.amount;return result;},{})).map(([category,total])=>({category,total})),
@@ -47,7 +47,7 @@ export function financialContext(ledger: Ledger, month: string, date: string) {
       return { reference:`Obligación ${i+1}`, label:obligationLabel(o.name), category:o.category, totalDebt:o.totalDebt??null, interestMV:o.interestMV??null, interestEA:o.interestEA??null, monthlyAmount:o.amount, paid:report.paid, remaining:report.remaining, dueDate:o.dueDate, cutoffDate:o.cutoffDate, status:report.status };
     }),
     omittedObligations: Math.max(0,ledger.obligations.length-100),
-    limitations: 'Los ingresos y gastos pueden estar incompletos. Los saldos totales y tasas son datos manuales del extracto; null significa desconocido. Los pagos de cuotas no reducen automáticamente esos saldos. Los gastos diarios corresponden solo a los registros del mes. No incluye ahorro. Disponible registrado no equivale a dinero libre para ahorrar. Las cuotas mensuales no son capital pendiente del crédito.',
+    limitations: 'Los ingresos y gastos pueden estar incompletos. Los traslados recibidos suman al disponible y los enviados lo descuentan; no son nuevos ingresos ni gastos. Los pagos se aplican al mes de la obligación aunque su fecha real sea de otro mes. Los saldos totales y tasas son datos manuales del extracto; null significa desconocido. Los pagos de cuotas no reducen automáticamente esos saldos. Los gastos diarios corresponden solo a los registros del mes. No incluye ahorro. Disponible registrado no equivale a dinero libre para ahorrar. Las cuotas mensuales no son capital pendiente del crédito.',
   };
 }
 export function turnMessages(turns: CoachTurn[]): ChatMessage[] {

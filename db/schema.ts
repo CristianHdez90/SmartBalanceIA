@@ -54,3 +54,8 @@ export const financialGoals = sqliteTable('financial_goals', {
  check('goal_target_valid', sql`${t.target} > 0 AND ${t.target} <= 999999999999`),
  check('goal_saved_valid', sql`${t.saved} >= 0 AND ${t.saved} <= 999999999999`),
  check('goal_archived_valid', sql`${t.archived} IN (0,1)`)]);
+
+export const balanceTransfers = sqliteTable('balance_transfers', {
+ id:text('id').primaryKey().notNull(),userId:text('user_id').notNull().references(()=>users.id),
+ fromMonth:text('from_month').notNull(),toMonth:text('to_month').notNull(),amount:integer('amount').notNull(),createdAt:integer('created_at').notNull(),
+},t=>[index('idx_balance_transfers_from').on(t.userId,t.fromMonth),index('idx_balance_transfers_to').on(t.userId,t.toMonth),check('transfer_amount_valid',sql`${t.amount} > 0 AND ${t.amount} <= 999999999999`),check('transfer_next_month',sql`${t.toMonth} = strftime('%Y-%m',${t.fromMonth} || '-01','+1 month')`)]);
