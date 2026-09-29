@@ -1,0 +1,29 @@
+'use client';
+
+import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { Sparkles, ArrowUpRight, MapPin } from 'lucide-react';
+import { money, totals, type Ledger } from '@/src/domain/finance';
+
+export default function BalanceOverview({ ledger, month, loading, onNavigate }: { ledger: Ledger; month: string; loading: boolean; onNavigate: (section: string) => void }) {
+  if (loading) return <div className="empty" role="status">Cargando el resumen de tus finanzas…</div>;
+  const sums = totals(ledger);
+  const days = new Date(Number(month.slice(0, 4)), Number(month.slice(5)), 0).getDate();
+  const chart = Array.from({ length: days }, (_, index) => {
+    const date = `${month}-${String(index + 1).padStart(2, '0')}`;
+    return { day: index + 1,
+      ingresos: ledger.movements.filter(m => m.kind === 'income' && m.date === date).reduce((sum, m) => sum + m.amount, 0),
+      gastos: ledger.movements.filter(m => m.kind === 'payment' && m.date === date).reduce((sum, m) => sum + m.amount, 0) + ledger.expenses.filter(e => e.date === date).reduce((sum, e) => sum + e.amount, 0) };
+  });
+  const categories = Object.entries(ledger.expenses.reduce<Record<string, number>>((result, item) => { result[item.category] = (result[item.category] ?? 0) + item.amount; return result; }, {})).sort((a, b) => b[1] - a[1]);
+  const spent = sums.paid + sums.dailyExpenses;
+  const percentage = sums.income > 0 ? Math.round(spent / sums.income * 100) : null;
+  const recent = [...ledger.movements.map(m => ({ id: m.id, description: m.description || (m.kind === 'income' ? 'Ingreso' : 'Pago de obligación'), amount: m.amount, date: m.date, income: m.kind === 'income' })), ...ledger.expenses.map(e => ({ ...e, income: false }))].sort((a, b) => (b.date ?? '').localeCompare(a.date ?? '')).slice(0, 5);
+  return <div className="balance-overview">
+    <section className="balance-card balance-chart"><h2>Actividad del mes</h2><p>Ingresos, pagos y gastos diarios por fecha · COP</p><div className="balance-legend"><span>● Ingresos</span><span>● Egresos</span></div><div className="balance-chart-canvas"><ResponsiveContainer width="100%" height="100%"><AreaChart data={chart} margin={{ top: 10, right: 12, left: 0, bottom: 0 }}><defs><linearGradient id="balance-expenses" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="#6366f1" stopOpacity={0.4}/><stop offset="100%" stopColor="#6366f1" stopOpacity={0}/></linearGradient></defs><CartesianGrid stroke="rgba(99,102,241,.12)" strokeDasharray="3 3"/><XAxis dataKey="day" tick={{ fill: '#91a1c5', fontSize: 11 }} minTickGap={24}/><YAxis tick={{ fill: '#91a1c5', fontSize: 11 }} width={64} tickFormatter={value => `${Number(value) / 1000000}M`}/><Tooltip contentStyle={{ background: '#0e1230', borderColor: '#363b70', borderRadius: 12 }} formatter={value => money(Number(value))} labelFormatter={value => `Día ${value}`}/><Area name="Ingresos" type="monotone" dataKey="ingresos" stroke="#22d3ee" fill="transparent" strokeWidth={2}/><Area name="Egresos" type="monotone" dataKey="gastos" stroke="#818cf8" fill="url(#balance-expenses)" strokeWidth={2}/></AreaChart></ResponsiveContainer></div>{ledger.movements.some(m => !m.date) && <p>Los movimientos sin fecha se incluyen en los saldos, pero no en la gráfica.</p>}</section>
+    <section className="balance-card"><h2>Uso de tus ingresos</h2><p>Pagos y gastos del mes</p><div className="balance-ring" style={{ background: `conic-gradient(#818cf8 ${Math.min(100, percentage ?? 0)}%, #1a1f42 0)` }}><div><strong>{percentage === null ? '—' : `${percentage}%`}</strong><span>utilizado</span></div></div><div className="balance-stat"><span>Egresos</span><b>{money(spent)}</b></div><div className="balance-stat"><span>Disponible</span><b>{money(sums.available)}</b></div>{percentage === null && <p>Registra ingresos para calcular este porcentaje.</p>}</section>
+    <section className="balance-card balance-insight"><Sparkles size={26}/><h2>Tu asistente financiero</h2><p>Consulta tus obligaciones, organiza tus próximos pagos y analiza los gastos de este mes con tus propios datos.</p><div className="balance-insight-note">{sums.available < 0 ? 'Los egresos registrados superan los ingresos de este mes. Revisa tus movimientos.' : `Tienes ${money(sums.pending)} en cuotas pendientes de pago.`}</div><button className="primary" onClick={() => onNavigate('coach')}>Abrir Asistente IA <ArrowUpRight size={17}/></button></section>
+    <section className="balance-card"><h2>Gastos por categoría</h2><p>Distribución de los gastos diarios</p>{categories.length ? categories.map(([name, amount], index) => <div className="balance-category" key={name}><div><span>{name}</span><b>{money(amount)}</b></div><div className="balance-bar"><span style={{ width: `${sums.dailyExpenses ? amount / sums.dailyExpenses * 100 : 0}%`, background: ['#818cf8', '#22d3ee', '#34d399', '#fbbf24'][index % 4] }}/></div></div>) : <p className="empty">Aún no has registrado gastos diarios.</p>}</section>
+    <section className="balance-card"><div className="balance-card-heading"><h2>Movimientos recientes</h2><button className="text-button" onClick={() => onNavigate('movements')}>Ver todos →</button></div>{recent.length ? recent.map(item => <div className="balance-recent" key={item.id}><span>{item.description}<small>{item.date ? item.date.split('-').reverse().join('/') : 'Sin fecha'}</small></span><b className={item.income ? 'green' : ''}>{item.income ? '+' : '−'}{money(item.amount)}</b></div>) : <p className="empty">Tus registros aparecerán aquí.</p>}</section>
+    <section className="balance-card"><MapPin size={24}/><h2>Promociones cerca de ti</h2><p>Busca ofertas por ubicación y categoría para planear tus compras.</p><button className="secondary" onClick={() => onNavigate('promotions')}>Explorar promociones <ArrowUpRight size={17}/></button></section>
+  </div>;
+}

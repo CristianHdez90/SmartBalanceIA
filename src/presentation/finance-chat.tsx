@@ -1,5 +1,4 @@
 'use client';
-import './finance-chat.css';
 import InitialFinancialSummary from './initial-financial-summary';
 import { useEffect, useRef, useState } from 'react';
 import { Bot, Send, MessageCircle, RotateCcw, Trash2, LoaderCircle, ShieldCheck } from 'lucide-react';
