@@ -1,13 +1,16 @@
 'use client';
+import { usePrivateMoney } from './amount-privacy';
+
 import { useState } from 'react';
 import { ArrowRightLeft, Pencil } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
-import { followingMonth, money, paidFor, type Ledger, type Movement, type Obligation } from '@/src/domain/finance';
+import { followingMonth, paidFor, type Ledger, type Movement, type Obligation } from '@/src/domain/finance';
 import { toast } from 'sonner';
 
 export const monthName = (month:string) => new Intl.DateTimeFormat('es-CO',{month:'long',year:'numeric'}).format(new Date(month+'-15T12:00:00'));
 type Save = (payload:unknown)=>Promise<Ledger>;
 export function CarryObligation({obligation,ledger,save,onSaved,disabled}:{obligation:Obligation;ledger:Ledger;save:Save;onSaved:(ledger:Ledger)=>void;disabled:boolean}){
+  const money = usePrivateMoney();
  const [id,setId]=useState<string|null>(null),[busy,setBusy]=useState(false),[error,setError]=useState('');
  const pending=(obligation.amount??0)-paidFor(obligation.id,ledger.movements)-(obligation.transferredAmount??0),next=followingMonth(obligation.month);
  if(obligation.amount===null||pending<=0)return null;
@@ -16,6 +19,7 @@ export function CarryObligation({obligation,ledger,save,onSaved,disabled}:{oblig
  <div className="transfer-explanation"><span>Saldo que se sumará al siguiente mes</span><strong>{money(pending)}</strong><p>Se registrará como trasladado, sin marcarlo como pagado ni descontarlo del disponible.</p></div><label>Motivo de no cumplir el pago<textarea name="reason" minLength={3} maxLength={500} required disabled={busy} placeholder="Describe por qué debes aplazar este saldo" rows={3}/></label>{error&&<p className="error" role="alert">{error}</p>}<div className="form-actions"><button type="button" className="secondary" disabled={busy} onClick={()=>setId(null)}>Cancelar</button><button className="primary" disabled={busy}>{busy?'Trasladando…':'Trasladar obligación'}</button></div></form></DialogContent></Dialog></>;
 }
 export function TransferBalance({month,available,disabled,save,onSaved}:{month:string;available:number;disabled:boolean;save:Save;onSaved:(ledger:Ledger)=>void}) {
+  const money = usePrivateMoney();
  const [id,setId]=useState<string|null>(null);
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState('');
@@ -24,11 +28,12 @@ export function TransferBalance({month,available,disabled,save,onSaved}:{month:s
  <Dialog open={!!id} onOpenChange={open=>{if(!open&&!busy)setId(null);}}><DialogContent className="ledger-adjustment-dialog"><DialogTitle>Trasladar saldo disponible</DialogTitle><DialogDescription>Reserva parte del disponible de {monthName(month)} para pagar obligaciones en {monthName(next)}.</DialogDescription>
  <form onSubmit={async event=>{event.preventDefault();if(busy||!id)return;const amount=Number(new FormData(event.currentTarget).get('amount'));setBusy(true);setError('');try{onSaved(await save({action:'transferBalance',id,month,amount}));setId(null);toast.success('Saldo trasladado a '+monthName(next));}catch(e){setError((e as Error).message);}finally{setBusy(false);}}}>
  <div className="transfer-explanation"><span>Disponible para trasladar</span><strong>{money(available)}</strong><p>El importe se descontará de este mes y aparecerá en el siguiente como saldo trasladado. Puedes trasladar todo o una parte.</p></div>
- <label>Importe a trasladar (COP)<input name="amount" type="number" min="1" max={Math.min(available,999999999999)} step="1" required defaultValue={Math.min(available,999999999999)} disabled={busy}/></label>
+ <label>Importe a trasladar (COP)<input name="amount" type={money.hidden ? "password" : "number"} autoComplete="off" min="1" max={Math.min(available,999999999999)} step="1" required defaultValue={Math.min(available,999999999999)} disabled={busy}/></label>
  {error&&<p className="error" role="alert">{error}</p>}<div className="form-actions"><button type="button" className="secondary" disabled={busy} onClick={()=>setId(null)}>Cancelar</button><button className="primary" disabled={busy}>{busy?'Trasladando…':'Trasladar saldo'}</button></div></form></DialogContent></Dialog></>;
 }
 
 export function EditPaymentDate({movement,name,disabled,save,onSaved}:{movement:Movement;name:string;disabled:boolean;save:Save;onSaved:(ledger:Ledger)=>void}) {
+  const money = usePrivateMoney();
  const [open,setOpen]=useState(false);const [busy,setBusy]=useState(false);const [error,setError]=useState('');
  return <><button className="reverse-button" disabled={disabled} aria-label={'Editar fecha de pago de '+name} onClick={()=>{setError('');setOpen(true);}}><Pencil size={15}/><span>Editar fecha</span></button>
  <Dialog open={open} onOpenChange={value=>{if(!busy)setOpen(value);}}><DialogContent className="ledger-adjustment-dialog"><DialogTitle>Editar fecha de pago</DialogTitle><DialogDescription>{name} · {money(movement.amount)}. El pago seguirá aplicado a {monthName(movement.month)}; puedes registrar una fecha anterior si pagaste anticipadamente.</DialogDescription>

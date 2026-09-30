@@ -1,10 +1,12 @@
 'use client';
+import { usePrivateMoney } from './amount-privacy';
+
 import InitialFinancialSummary from './initial-financial-summary';
 import { useEffect, useRef, useState } from 'react';
 import { Bot, Send, MessageCircle, RotateCcw, Trash2, LoaderCircle, ShieldCheck } from 'lucide-react';
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel, AlertDialogAction } from '@/components/ui/alert-dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { money, type Ledger } from '@/src/domain/finance';
+import { type Ledger } from '@/src/domain/finance';
 import { colombiaDate, financialContext, type CoachTurn } from '@/src/domain/coach';
 
 const suggestions = [
@@ -15,6 +17,7 @@ const suggestions = [
 ];
 type Connection = { configured:boolean;conversationId:string|null;turns:CoachTurn[] };
 export default function FinanceChat({month,monthLabel,ledger}:{month:string;monthLabel:string;ledger:Ledger}) {
+  const money = usePrivateMoney();
   const [confirmClear,setConfirmClear]=useState(false);
   const [clearing,setClearing]=useState(false);
   const [notice,setNotice]=useState('');
@@ -80,10 +83,10 @@ export default function FinanceChat({month,monthLabel,ledger}:{month:string;mont
     {summaryPrepared&&<div ref={summaryPanel} className="initial-summary-panel"><InitialFinancialSummary context={context}/><button type="button" className="primary" disabled={sending||loading} onClick={()=>{composer.current?.focus({preventScroll:true});composer.current?.scrollIntoView({block:"center",behavior:"smooth"})}}>Revisar consulta preparada ↓</button></div>}
     {loading?<div className="chat-loading"><LoaderCircle className="spin" size={20}/> Cargando conversación…</div>:!configured&&<div className="chat-setup" role="status"><b>Falta activar la conexión de IA</b><p>Configura la clave de Groq API en el servidor. Después podrás enviar preguntas y recibir planes personalizados aquí.</p><button className="secondary" onClick={()=>setReload(v=>v+1)}>Comprobar conexión</button></div>}
     {!loading&&<div className="chat-welcome"><MessageCircle size={27}/><h3>¿Qué te gustaría mejorar?</h3><p>Empieza con una pregunta o elige una idea.</p><div className="chat-suggestions">{suggestions.map(s=><button key={s.title} disabled={sending||clearing} onClick={()=>{setDraft(s.text);requestId.current=null;}}>{s.title}<span>↗</span></button>)}</div></div>}
-    <div className="chat-messages" aria-label="Conversación guardada">{turns.map(turn=><div key={turn.id} className="chat-turn"><article className="chat-message chat-user"><span>Tú</span><p>{turn.question}</p></article><article className="chat-message chat-assistant"><span><Bot size={15}/> Asistente IA</span><p>{turn.answer}</p><small>{new Intl.DateTimeFormat('es-CO',{timeZone:'America/Bogota',dateStyle:'short',timeStyle:'short'}).format(turn.createdAt)}{includeContext?' · Basado en los datos disponibles al consultar':''}</small></article></div>)}<div ref={bottom}/></div>
+    <div className="chat-messages" aria-label="Conversación guardada">{turns.map(turn=><div key={turn.id} className="chat-turn"><article className="chat-message chat-user"><span>Tú</span><p>{money.hidden ? 'Mensaje oculto por privacidad' : turn.question}</p></article><article className="chat-message chat-assistant"><span><Bot size={15}/> Asistente IA</span><p>{money.hidden ? 'Respuesta oculta por privacidad' : turn.answer}</p><small>{new Intl.DateTimeFormat('es-CO',{timeZone:'America/Bogota',dateStyle:'short',timeStyle:'short'}).format(turn.createdAt)}{includeContext?' · Basado en los datos disponibles al consultar':''}</small></article></div>)}<div ref={bottom}/></div>
     {sending&&<p className="chat-loading" role="status"><LoaderCircle className="spin" size={18}/> Preparando una respuesta…</p>}
     {error&&<div className="error" role="alert">{error}<button className="text-button" disabled={sending} onClick={()=>setReload(v=>v+1)}>Actualizar</button></div>}
-    <form onSubmit={send} className="chat-composer"><label htmlFor="finance-question">Tu consulta</label><Textarea ref={composer} id="finance-question" value={draft} disabled={sending} maxLength={2000} onChange={e=>{setDraft(e.target.value);requestId.current=null}} placeholder="Por ejemplo: ¿cómo distribuyo mi próximo ingreso sin atrasarme en los pagos?" rows={3}/><div className="chat-send-row"><small>{draft.length}/2000 · {includeContext?'Con resumen del mes':'Consulta general'}</small><button className="primary" disabled={loading||sending||clearing||!configured||!conversationId||!draft.trim()}>{sending?<LoaderCircle className="spin" size={17}/>:<Send size={17}/>} {sending?'Consultando…':'Enviar consulta'}</button></div></form>
+    <form onSubmit={send} className="chat-composer"><label htmlFor="finance-question">Tu consulta</label><Textarea ref={composer} id="finance-question" value={money.hidden ? "" : draft} disabled={sending || money.hidden} maxLength={2000} onChange={e=>{setDraft(e.target.value);requestId.current=null}} placeholder="Por ejemplo: ¿cómo distribuyo mi próximo ingreso sin atrasarme en los pagos?" rows={3}/><div className="chat-send-row"><small>{draft.length}/2000 · {includeContext?'Con resumen del mes':'Consulta general'}</small><button className="primary" disabled={loading||sending||clearing||!configured||!conversationId||!draft.trim()}>{sending?<LoaderCircle className="spin" size={17}/>:<Send size={17}/>} {sending?'Consultando…':'Enviar consulta'}</button></div></form>
     <p className="chat-footnote">Orientación educativa generada por IA; revisa los supuestos antes de tomar decisiones. El chat no realiza pagos ni modifica tu contabilidad. La conversación se guarda en tu plataforma y muestra las últimas 6 consultas. Las respuestas anteriores no se recalculan: vuelve a consultar después de cambiar movimientos.</p>
     <AlertDialog open={confirmClear} onOpenChange={value=>{if(!clearing)setConfirmClear(value)}}><AlertDialogContent className="clear-chat-dialog"><AlertDialogHeader><AlertDialogTitle>¿Eliminar todo el historial del chat?</AlertDialogTitle><AlertDialogDescription>Se eliminarán permanentemente todas las preguntas y respuestas guardadas en esta plataforma, de todos los meses y conversaciones, con y sin resumen. También se vaciará el borrador. Tus obligaciones, ingresos, pagos y reportes se conservarán. Esta acción no se puede deshacer.</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel disabled={clearing}>Cancelar</AlertDialogCancel><AlertDialogAction disabled={clearing} onClick={event=>{event.preventDefault();void clearHistory()}}>{clearing?'Eliminando…':'Sí, eliminar todo el chat'}</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
   </section>;

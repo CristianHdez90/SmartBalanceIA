@@ -1,6 +1,9 @@
-import { money } from '../domain/finance';
+'use client';
+import { usePrivateMoney } from './amount-privacy';
+
 import type { financialContext } from '../domain/coach';
 export default function InitialFinancialSummary({context}:{context:ReturnType<typeof financialContext>}) {
+  const money = usePrivateMoney();
  const formatDate=(value:string|null)=>value?value.split('-').reverse().join('/'):'Sin definir';
  return <div className="initial-financial-summary">
   <h3>Resumen inicial de tus registros</h3>

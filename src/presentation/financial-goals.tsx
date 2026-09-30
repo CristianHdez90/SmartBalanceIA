@@ -1,11 +1,13 @@
 'use client';
+import { usePrivateMoney } from './amount-privacy';
+
 
 import { useEffect, useState, type CSSProperties, type FormEvent } from 'react';
 import { Plus, Pencil, Archive, RotateCcw, Sparkles, LoaderCircle, RefreshCw } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import { goalIcons, goalColors, goalProgress, type FinancialGoal } from '@/src/domain/goals';
 import MonthlyBackup from './monthly-backup';
-import { money } from '@/src/domain/finance';
+
 
 type Editor = { id: string; goal?: FinancialGoal; contribution?: boolean };
 const iconLabels = { travel: 'Viaje', emergency: 'Emergencia', car: 'Vehículo', home: 'Vivienda', education: 'Educación', savings: 'Ahorro' };
@@ -17,6 +19,7 @@ async function requestGoals(body?: unknown, signal?: AbortSignal): Promise<Finan
   return result.goals;
 }
 export default function FinancialGoals({ onCoach }: { onCoach: () => void }) {
+  const money = usePrivateMoney();
   const [goals, setGoals] = useState<FinancialGoal[]>([]);
   const [loading, setLoading] = useState(true), [saving, setSaving] = useState(false);
   const [error, setError] = useState(''), [formError, setFormError] = useState(''), [notice, setNotice] = useState('');
@@ -72,9 +75,9 @@ export default function FinancialGoals({ onCoach }: { onCoach: () => void }) {
     </>}
     <Dialog open={!!editor} onOpenChange={value => { if (!value && !saving) setEditor(null); }}><DialogContent className="editor goal-editor"><DialogTitle>{editor?.contribution ? 'Registrar ahorro' : editor?.goal ? 'Editar meta' : 'Nueva meta'}</DialogTitle><DialogDescription>{editor?.contribution ? `Añade al progreso de «${editor.goal?.name}» el dinero que ya hayas ahorrado.` : 'Define tu objetivo, lo que ya tienes ahorrado y una fecha para alcanzarlo.'}</DialogDescription>
       {editor && <form key={`${editor.id}-${editor.contribution}`} onSubmit={save}>
-        {editor.contribution ? <><p className="muted">Ahorro actual: {money(editor.goal?.saved ?? 0)}</p><label>Ahorro adicional (COP)<input autoFocus name="contribution" type="number" required min="1" max={999999999999 - (editor.goal?.saved ?? 0)} step="1" placeholder="Ej. 100000"/></label></> : <>
+        {editor.contribution ? <><p className="muted">Ahorro actual: {money(editor.goal?.saved ?? 0)}</p><label>Ahorro adicional (COP)<input autoFocus name="contribution" type={money.hidden ? "password" : "number"} autoComplete="off" required min="1" max={999999999999 - (editor.goal?.saved ?? 0)} step="1" placeholder="Ej. 100000"/></label></> : <>
           <label>Nombre de la meta<input autoFocus name="name" required minLength={2} maxLength={100} placeholder="Ej. Viaje a Europa" defaultValue={editor.goal?.name}/></label>
-          <div className="goal-form-row"><label>Monto objetivo (COP)<input name="target" type="number" required min="1" max="999999999999" step="1" defaultValue={editor.goal?.target}/></label><label>Ya ahorrado (COP)<input name="saved" type="number" required min="0" max="999999999999" step="1" defaultValue={editor.goal?.saved ?? 0}/></label></div>
+          <div className="goal-form-row"><label>Monto objetivo (COP)<input name="target" type={money.hidden ? "password" : "number"} autoComplete="off" required min="1" max="999999999999" step="1" defaultValue={editor.goal?.target}/></label><label>Ya ahorrado (COP)<input name="saved" type={money.hidden ? "password" : "number"} autoComplete="off" required min="0" max="999999999999" step="1" defaultValue={editor.goal?.saved ?? 0}/></label></div>
           <label>Fecha objetivo<input name="dueDate" type="date" required min="2000-01-01" max="2099-12-31" defaultValue={editor.goal?.dueDate}/></label>
           <div className="goal-form-row"><label>Icono<select name="icon" defaultValue={editor.goal?.icon ?? 'travel'}>{Object.entries(goalIcons).map(([key, icon]) => <option key={key} value={key}>{icon} {iconLabels[key as keyof typeof goalIcons]}</option>)}</select></label><label>Color<select name="color" defaultValue={editor.goal?.color ?? 'indigo'}>{Object.entries(colorLabels).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></label></div>
         </>}

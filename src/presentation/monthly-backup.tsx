@@ -1,8 +1,10 @@
 'use client';
+import { usePrivateMoney } from './amount-privacy';
+
 import { useState } from 'react';
 import { DatabaseBackup, Download, FileSpreadsheet, FileCode, Upload, LoaderCircle } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
-import { money } from '@/src/domain/finance';
+
 import { monthName } from './ledger-adjustments';
 import { toast } from 'sonner';
 
@@ -11,6 +13,7 @@ type Preview={month:string;exportedAt:string;records:Counts;currentRecords:Count
 const countLabels:Record<keyof Counts,string>={carries:'Obligaciones trasladadas',history:'Cambios de estado',goals:'Metas',obligations:'Obligaciones',movements:'Ingresos y pagos',expenses:'Gastos diarios',transfers:'Traslados'};
 async function request(endpoint:string,sql:string,action:'preview'|'restore',revision?:string){const response=await fetch(endpoint,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,sql,...(revision?{revision}:{})})});const result=await response.json();if(!response.ok)throw new Error(result.error??'No se pudo procesar el respaldo.');return result;}
 export default function MonthlyBackup({month,scope='ledger',disabled,onRestored}:{month:string;scope?:'ledger'|'expenses'|'goals';disabled:boolean;onRestored:(month:string)=>void}){
+  const money = usePrivateMoney();
  const endpoint=scope==='goals'?'/api/goals/backup':'/api/ledger/backup?scope='+scope;
  const label=scope==='goals'?'todas tus metas':monthName(month);
  const [downloading,setDownloading]=useState('');const [open,setOpen]=useState(false);const [busy,setBusy]=useState(false);const [error,setError]=useState('');const [sql,setSql]=useState('');const [filename,setFilename]=useState('');const [preview,setPreview]=useState<Preview|null>(null);const [confirmed,setConfirmed]=useState(false);

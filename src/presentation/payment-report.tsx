@@ -1,8 +1,10 @@
 'use client';
+import { usePrivateMoney } from './amount-privacy';
+
 import { useState } from 'react';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { money, type Ledger } from '@/src/domain/finance';
+import { type Ledger } from '@/src/domain/finance';
 import { formatDate, paymentDetails, paymentReport, reportStatuses } from '@/src/domain/payment-report';
 
 export function PaymentDate({obligation, movements}: {obligation: Ledger['obligations'][number]; movements: Ledger['movements']}) {
@@ -10,6 +12,7 @@ export function PaymentDate({obligation, movements}: {obligation: Ledger['obliga
   return <span>Último pago: <b>{details.lastDate ? formatDate(details.lastDate) : details.hasPayments ? 'Fecha no informada' : 'Sin pagos'}</b>{details.missingDates && details.lastDate && <small>Hay abonos sin fecha</small>}</span>;
 }
 export default function PaymentReport({ledger, today, monthLabel, loading}: {ledger: Ledger; today: string; monthLabel: string; loading: boolean}) {
+  const money = usePrivateMoney();
   const [filter, setFilter] = useState('Todos');
   const rows = ledger.obligations.map(o => paymentReport(o, ledger.movements, today)).sort((a,b) => (a.obligation.dueDate ?? '9999').localeCompare(b.obligation.dueDate ?? '9999') || a.obligation.name.localeCompare(b.obligation.name));
   const visible = rows.filter(r => filter === 'Todos' || r.status === filter);
