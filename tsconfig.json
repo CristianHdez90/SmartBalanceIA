@@ -43,6 +43,7 @@
     "node_modules",
     "examples",
     "build",
-    "vite.config.ts"
+    "vite.config.ts",
+    "mobile"
   ]
 }

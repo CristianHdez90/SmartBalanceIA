@@ -1,4 +1,5 @@
 'use client';
+import { downloadFile } from './download-file';
 import { usePrivateMoney } from './amount-privacy';
 
 import { useState } from 'react';
@@ -19,7 +20,7 @@ export default function MonthlyBackup({month,scope='ledger',disabled,onRestored}
  const [downloading,setDownloading]=useState('');const [open,setOpen]=useState(false);const [busy,setBusy]=useState(false);const [error,setError]=useState('');const [sql,setSql]=useState('');const [filename,setFilename]=useState('');const [preview,setPreview]=useState<Preview|null>(null);const [confirmed,setConfirmed]=useState(false);
  async function download(format:'xlsx'|'csv'|'sql'){
   setDownloading(format);
-  try{const response=await fetch(`${endpoint}${endpoint.includes('?')?'&':'?'}month=${month}&format=${format}`,{cache:'no-store'});if(!response.ok){const result=await response.json();throw new Error(result.error??'No se pudo descargar.');}const url=URL.createObjectURL(await response.blob());const link=document.createElement('a');link.href=url;link.download=`mi-balance-${scope==='goals'?'metas':scope==='expenses'?'gastos-'+month:month}.${format}`;link.click();setTimeout(()=>URL.revokeObjectURL(url),30000);toast.success('Descarga preparada: '+label);}catch(e){toast.error((e as Error).message);}finally{setDownloading('');}
+  try{const response=await fetch(`${endpoint}${endpoint.includes('?')?'&':'?'}month=${month}&format=${format}`,{cache:'no-store'});if(!response.ok){const result=await response.json();throw new Error(result.error??'No se pudo descargar.');}await downloadFile(await response.blob(),`mi-balance-${scope==='goals'?'metas':scope==='expenses'?'gastos-'+month:month}.${format}`);toast.success('Descarga preparada: '+label);}catch(e){toast.error((e as Error).message);}finally{setDownloading('');}
  }
  return <section className="monthly-backup" aria-label="Descargas y respaldos"><div className="backup-heading"><DatabaseBackup size={19}/><div><h2>{scope==='goals'?'Respaldos de Metas':scope==='expenses'?'Respaldos de Gastos diarios':'Respaldos del mes'}</h2><p>{scope==='goals'?'Incluye metas activas y archivadas, ahorros y fechas objetivo.':scope==='expenses'?'Descarga los gastos de '+label+'.':'Descarga '+label+' con obligaciones, ingresos, pagos, gastos y traslados.'}</p></div></div><div className="backup-actions">
  <button className="secondary" disabled={disabled||!!downloading} onClick={()=>download('xlsx')}><FileSpreadsheet size={16}/>{downloading==='xlsx'?'Preparando…':'Excel (.xlsx)'}</button>
