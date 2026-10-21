@@ -2,6 +2,7 @@
 import {useEffect,useState} from 'react';
 import {Check,Clock3,KeyRound,LoaderCircle,LockKeyhole,ShieldCheck,Trash2,TriangleAlert,UserPlus,Users,X} from 'lucide-react';
 import Dashboard from './dashboard';
+import { clearDeviceReminders } from './device-reminders';
 import {Dialog,DialogContent,DialogDescription,DialogTitle} from '@/components/ui/dialog';
 import {AlertDialog,AlertDialogAction,AlertDialogCancel,AlertDialogContent,AlertDialogDescription,AlertDialogFooter,AlertDialogHeader,AlertDialogTitle} from '@/components/ui/alert-dialog';
 import type {ManagedUser,ResetRequest,SessionUser,UserStatus} from '../domain/auth';
@@ -10,6 +11,7 @@ type Mode='login'|'register'|'forgot'|'reset'|'bootstrap';
 async function api(path:string,options?:RequestInit){const response=await fetch(path,{...options,headers:{'Content-Type':'application/json',...(options?.headers??{})}});const value=await response.json() as Record<string,unknown>;if(!response.ok)throw new Error(String(value.error??'No se pudo completar la solicitud.'));return value}
 
 function AccessForm({initialMode,initialToken='',initialMessage='',firebase=false,onLogin}:{initialMode:Mode;initialToken?:string;initialMessage?:string;firebase?:boolean;onLogin:(user:SessionUser)=>void}){
+ useEffect(() => { clearDeviceReminders(); }, []);
  const [mode,setMode]=useState(initialMode),[loading,setLoading]=useState(false),[error,setError]=useState(''),[message,setMessage]=useState(initialMessage);
  async function submit(event:React.FormEvent<HTMLFormElement>){event.preventDefault();if(loading)return;const form=new FormData(event.currentTarget);setLoading(true);setError('');setMessage('');try{
   const common={email:form.get('email')};let body:Record<string,unknown>;
@@ -37,7 +39,7 @@ function AdminUsers({open,onOpenChange}:{open:boolean;onOpenChange:(open:boolean
 export default function AuthShell(){
  const [checking,setChecking]=useState(true),[user,setUser]=useState<SessionUser|null>(null),[initialMode,setInitialMode]=useState<Mode>('login'),[initialToken,setInitialToken]=useState(''),[initialMessage,setInitialMessage]=useState(''),[firebase,setFirebase]=useState(false),[adminOpen,setAdminOpen]=useState(false),[error,setError]=useState('');
  useEffect(()=>{const params=new URLSearchParams(location.search),verify=params.get('verify'),reset=params.get('reset');const initialize=async()=>{if(verify){const result=await api('/api/auth',{method:'POST',body:JSON.stringify({action:'verify-email',token:verify})});setInitialMessage(String(result.message??''));history.replaceState({},'',location.pathname);setInitialMode('login')}else if(reset){setInitialToken(reset);setInitialMode('reset');history.replaceState({},'',location.pathname)}const result=await api('/api/auth');setUser((result.user as unknown as SessionUser|null)??null);setFirebase(result.authProvider==='firebase');if(result.needsBootstrap)setInitialMode('bootstrap')};initialize().catch(value=>setError((value as Error).message)).finally(()=>setChecking(false))},[]);
- async function logout(){try{await api('/api/auth',{method:'DELETE'});setUser(null);setInitialMode('login')}catch(value){setError((value as Error).message)}}
+ async function logout(){try{await api('/api/auth',{method:'DELETE'});clearDeviceReminders();setUser(null);setInitialMode('login')}catch(value){setError((value as Error).message)}}
  if(checking)return <div className="auth-loading"><LoaderCircle className="spin" size={28}/> Verificando sesión…</div>;
  if(error&&!user)return <div className="auth-loading"><p className="auth-error">{error}</p><button className="secondary" onClick={()=>location.reload()}>Reintentar</button></div>;
  if(!user)return <AccessForm initialMode={initialMode} initialToken={initialToken} initialMessage={initialMessage} firebase={firebase} onLogin={setUser}/>;

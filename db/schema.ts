@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, real, index, check } from 'drizzle-orm/sqlite-core';
+import { sqliteTable, text, integer, real, index, check, primaryKey } from 'drizzle-orm/sqlite-core';
 import { sql } from 'drizzle-orm';
 export const coachTurns = sqliteTable('coach_turns', {
  userId:text('user_id').notNull().default('legacy'),
@@ -66,3 +66,14 @@ export const obligationCarries=sqliteTable('obligation_carries',{
 export const obligationHistory=sqliteTable('obligation_history',{
  id:text('id').primaryKey().notNull(),userId:text('user_id').notNull().references(()=>users.id),obligationId:text('obligation_id').notNull(),month:text('month').notNull(),fromStatus:text('from_status'),toStatus:text('to_status').notNull(),effectiveDate:text('effective_date').notNull(),recordedAt:integer('recorded_at').notNull(),cause:text('cause').notNull(),basis:text('basis').notNull(),
 },t=>[index('idx_obligation_history_month').on(t.userId,t.month,t.recordedAt)]);
+
+export const notificationSettings = sqliteTable('notification_settings', {
+ userId:text('user_id').primaryKey().notNull().references(()=>users.id),
+ payments:integer('payments').notNull().default(1),promotions:integer('promotions').notNull().default(1),
+ advanceDays:integer('advance_days').notNull().default(3),time:text('time').notNull().default('08:00'),updatedAt:integer('updated_at').notNull(),
+},t=>[check('reminder_payments_bool',sql`${t.payments} IN (0,1)`),check('reminder_promotions_bool',sql`${t.promotions} IN (0,1)`),check('reminder_advance_range',sql`${t.advanceDays} BETWEEN 0 AND 14`)]);
+export const promotionReminders = sqliteTable('promotion_reminders', {
+ id:text('id').notNull(),userId:text('user_id').notNull().references(()=>users.id),supermarket:text('supermarket').notNull(),product:text('product').notNull(),
+ weekdays:text('weekdays').notNull(),startDate:text('start_date').notNull(),endDate:text('end_date').notNull(),note:text('note').notNull().default(''),
+ enabled:integer('enabled').notNull().default(1),version:integer('version').notNull().default(1),updatedAt:integer('updated_at').notNull(),
+},t=>[primaryKey({columns:[t.userId,t.id]}),index('idx_promotion_reminders_user_dates').on(t.userId,t.startDate,t.endDate),check('reminder_enabled_bool',sql`${t.enabled} IN (0,1)`)]);
