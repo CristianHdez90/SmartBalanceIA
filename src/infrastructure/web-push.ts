@@ -52,7 +52,7 @@ export class WebPushRepository {
   }
 }
 
-export async function dispatchWebPush(db: DatabaseClient, now = Date.now(), send = sendWebPush) {
+export async function dispatchWebPush(db: DatabaseClient, now = Date.now(), send = sendWebPush, source: 'vercel' | 'github' = 'vercel') {
   const deadline = Date.now()+45000;
   const day = bogotaDay(now), start = Date.parse(`${day}T00:00:00-05:00`);
   // Expired/revoked sessions and disabled accounts never receive reminders.
@@ -61,13 +61,27 @@ export async function dispatchWebPush(db: DatabaseClient, now = Date.now(), send
   const rows = (await db.prepare(`SELECT p.id,p.user_id AS userId,p.endpoint,p.p256dh,p.auth,p.created_at AS createdAt
     FROM web_push_subscriptions p LEFT JOIN web_push_deliveries d ON d.subscription_id=p.id AND d.day=?
     LEFT JOIN notification_settings n ON n.user_id=p.user_id
+    LEFT JOIN notification_auxiliary_checks a ON a.user_id=p.user_id
     WHERE (d.subscription_id IS NULL OR (d.state!='sent' AND d.attempts<3 AND d.retry_at<=?))
+    AND (?='vercel' OR (COALESCE(n.auxiliary_minutes,30)>0 AND (a.checked_at IS NULL OR a.checked_at+COALESCE(n.auxiliary_minutes,30)*60000<=?)))
     AND COALESCE(n.time,'08:00')<=? ORDER BY p.updated_at,p.id LIMIT 100`)
-    .bind(day,now,new Intl.DateTimeFormat('en-GB',{timeZone:'America/Bogota',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(now)).all<PushRow>()).results;
+    .bind(day,now,source,now,new Intl.DateTimeFormat('en-GB',{timeZone:'America/Bogota',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(now)).all<PushRow>()).results;
   let sent = 0, failed = 0, processed = 0;
   const plans = new Map<string, Awaited<ReturnType<RemindersRepository['read']>>>();
+  const auxiliaryClaims = new Map<string, boolean>();
   for (const row of rows) {
     if(Date.now()>=deadline) break;
+    if(source==='github') {
+      if(!auxiliaryClaims.has(row.userId)) {
+        const claim=await db.prepare(`INSERT INTO notification_auxiliary_checks(user_id,checked_at)
+          SELECT ?,? WHERE COALESCE((SELECT auxiliary_minutes FROM notification_settings WHERE user_id=?),30)>0
+          ON CONFLICT(user_id) DO UPDATE SET checked_at=excluded.checked_at
+          WHERE notification_auxiliary_checks.checked_at+COALESCE((SELECT auxiliary_minutes FROM notification_settings WHERE user_id=?),30)*60000<=?`)
+          .bind(row.userId,now,row.userId,row.userId,now).run();
+        auxiliaryClaims.set(row.userId,claim.meta.changes>0);
+      }
+      if(!auxiliaryClaims.get(row.userId)) continue;
+    }
     processed++;
     // Rotate evaluated subscriptions so a large set with no reminders cannot starve others.
     await db.prepare('UPDATE web_push_subscriptions SET updated_at=? WHERE id=?').bind(now,row.id).run();

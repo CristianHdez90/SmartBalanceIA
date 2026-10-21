@@ -70,7 +70,7 @@ export const obligationHistory=sqliteTable('obligation_history',{
 export const notificationSettings = sqliteTable('notification_settings', {
  userId:text('user_id').primaryKey().notNull().references(()=>users.id),
  payments:integer('payments').notNull().default(1),promotions:integer('promotions').notNull().default(1),
- advanceDays:integer('advance_days').notNull().default(3),time:text('time').notNull().default('08:00'),updatedAt:integer('updated_at').notNull(),
+ advanceDays:integer('advance_days').notNull().default(3),time:text('time').notNull().default('08:00'),auxiliaryMinutes:integer('auxiliary_minutes').notNull().default(30),updatedAt:integer('updated_at').notNull(),
 },t=>[check('reminder_payments_bool',sql`${t.payments} IN (0,1)`),check('reminder_promotions_bool',sql`${t.promotions} IN (0,1)`),check('reminder_advance_range',sql`${t.advanceDays} BETWEEN 0 AND 14`)]);
 export const promotionReminders = sqliteTable('promotion_reminders', {
  id:text('id').notNull(),userId:text('user_id').notNull().references(()=>users.id),supermarket:text('supermarket').notNull(),product:text('product').notNull(),
@@ -83,6 +83,9 @@ export const webPushSubscriptions = sqliteTable('web_push_subscriptions', {
  sessionHash:text('session_hash').notNull().references(()=>sessions.idHash,{onDelete:'cascade'}),endpoint:text('endpoint').notNull().unique(),
  p256dh:text('p256dh').notNull(),auth:text('auth').notNull(),createdAt:integer('created_at').notNull(),updatedAt:integer('updated_at').notNull(),lastTestAt:integer('last_test_at').notNull().default(0),
 },t=>[index('idx_web_push_user').on(t.userId)]);
+export const notificationAuxiliaryChecks = sqliteTable('notification_auxiliary_checks', {
+ userId:text('user_id').primaryKey().notNull().references(()=>users.id,{onDelete:'cascade'}),checkedAt:integer('checked_at').notNull(),
+});
 export const webPushDeliveries = sqliteTable('web_push_deliveries', {
  subscriptionId:text('subscription_id').notNull().references(()=>webPushSubscriptions.id,{onDelete:'cascade'}),day:text('day').notNull(),
  state:text('state').notNull(),attempts:integer('attempts').notNull().default(1),retryAt:integer('retry_at').notNull(),updatedAt:integer('updated_at').notNull(),

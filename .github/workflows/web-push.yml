@@ -22,4 +22,4 @@ jobs:
           fi
           curl --fail --silent --show-error --max-time 65 \
             --header "Authorization: Bearer $CRON_SECRET" \
-            'https://smart-balance-ia.vercel.app/api/cron/web-push'
+            'https://smart-balance-ia.vercel.app/api/cron/web-push?source=github'

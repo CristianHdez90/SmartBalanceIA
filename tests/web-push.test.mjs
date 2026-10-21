@@ -28,7 +28,7 @@ async function fixture() {
   await client.execute('CREATE TABLE obligations(id TEXT,user_id TEXT,month TEXT,due_date TEXT,due_day INTEGER,amount INTEGER)');
   await client.execute('CREATE TABLE movements(user_id TEXT,obligation_id TEXT,kind TEXT,amount INTEGER)');
   await client.execute('CREATE TABLE obligation_carries(user_id TEXT,source_id TEXT,target_id TEXT,amount INTEGER)');
-  for(const file of ['0014_device_reminders.sql','0015_web_push.sql']) {
+  for(const file of ['0014_device_reminders.sql','0015_web_push.sql','0016_auxiliary_interval.sql']) {
     const sql=readFileSync(new URL('../drizzle/'+file,import.meta.url),'utf8');
     await client.batch(sql.split(/-->\s*statement-breakpoint/).filter(s=>s.trim()),'write');
   }
@@ -115,6 +115,37 @@ test('enabling after the scheduled time does not send an old summary',async()=>{
   const f=await fixture();try {
     await f.db.prepare('UPDATE web_push_subscriptions SET created_at=?').bind(now).run();
     assert.equal((await dispatchWebPush(f.db,now,async()=>assert.fail('must not send'))).sent,0);
+  }finally{f.client.close();}
+});
+test('auxiliary interval persists per account, gates repeated checks, and leaves Vercel independent',async()=>{
+  const f=await fixture();try {
+    const r=new RemindersRepository(f.db,'alice');
+    await r.execute({action:'settings',settings:{...domain.defaultReminderSettings,auxiliaryMinutes:120}});
+    assert.equal((await r.read(now)).settings.auxiliaryMinutes,120);
+    assert.equal((await new RemindersRepository(f.db,'bob').read(now)).settings.auxiliaryMinutes,30);
+    let attempts=0;const fail=async()=>{attempts++;throw {statusCode:503};};
+    await dispatchWebPush(f.db,now,fail,'github');
+    await dispatchWebPush(f.db,now+30*60000,fail,'github');
+    assert.equal(attempts,1);
+    await dispatchWebPush(f.db,now+120*60000,fail,'github');
+    assert.equal(attempts,2);
+    await r.execute({action:'settings',settings:{...domain.defaultReminderSettings,auxiliaryMinutes:0}});
+    await dispatchWebPush(f.db,now+240*60000,fail,'github');
+    assert.equal(attempts,2);
+    const delivered=[];
+    await dispatchWebPush(f.db,now+240*60000,async row=>delivered.push(row.id),'vercel');
+    assert.equal(delivered.length,1);
+  }finally{f.client.close();}
+});
+test('shorter intervals take effect without another workflow edit; unsupported intervals are rejected',async()=>{
+  assert.equal(domain.reminderSettings.safeParse({...domain.defaultReminderSettings,auxiliaryMinutes:17}).success,false);
+  const f=await fixture();try {
+    const r=new RemindersRepository(f.db,'alice');
+    await r.execute({action:'settings',settings:{...domain.defaultReminderSettings,auxiliaryMinutes:360}});
+    await dispatchWebPush(f.db,now,async()=>{throw {statusCode:503};},'github');
+    await r.execute({action:'settings',settings:{...domain.defaultReminderSettings,auxiliaryMinutes:30}});
+    const result=await dispatchWebPush(f.db,now+30*60000,async()=>{},'github');
+    assert.equal(result.sent,1);
   }finally{f.client.close();}
 });
 test('cron refuses missing or invalid credentials before touching the database',async()=>{

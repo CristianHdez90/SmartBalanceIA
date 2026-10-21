@@ -7,8 +7,9 @@ const date = z.string().regex(/^20\d{2}-\d{2}-\d{2}$/).refine(value => {
 export const reminderSettings = z.object({
   payments: z.boolean(), promotions: z.boolean(),
   advanceDays: z.number().int().min(0).max(14), time: z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/),
+  auxiliaryMinutes: z.union([z.literal(0),z.literal(30),z.literal(60),z.literal(120),z.literal(360),z.literal(1440)]).default(30),
 }).strict();
-export const defaultReminderSettings = { payments: true, promotions: true, advanceDays: 3, time: '08:00' };
+export const defaultReminderSettings: ReminderSettings = { payments: true, promotions: true, advanceDays: 3, time: '08:00', auxiliaryMinutes: 30 };
 export type ReminderSettings = z.infer<typeof reminderSettings>;
 const promotionFields = {
   id: z.string().uuid(), supermarket: z.string().trim().min(2).max(80),

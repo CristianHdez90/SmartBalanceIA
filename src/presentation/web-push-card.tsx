@@ -59,6 +59,6 @@ export default function WebPushCard() {
   }
   return <article><h2><Bell size={20}/> Notificaciones web</h2><p role="status">{message}</p>{error&&<p className="auth-error" role="alert">{error}</p>}
     <div className="reminder-actions"><button className="primary" disabled={busy||!supported||!key} onClick={()=>void act(enabled?'disable':'enable')}>{enabled?'Desactivar en este navegador':'Activar notificaciones web'}</button>{enabled&&<button className="secondary" disabled={busy} onClick={()=>void act('test')}>Probar aviso</button>}<button className="secondary" disabled={busy} onClick={()=>void act('refresh')}>{busy?'Procesando…':'Comprobar estado'}</button></div>
-    <small>Un resumen diario a partir de la hora elegida en Preferencias (Colombia). Vercel revisa cerca de las 8:00 a. m. y GitHub Actions cada 30 minutos como apoyo; puede haber retrasos. No muestra montos ni nombres. Al cerrar sesión o vencer la sesión se detienen los avisos; vuelve a activarlos al iniciar sesión.</small>
+    <small>Un resumen diario a partir de la hora elegida en Preferencias (Colombia). Vercel revisa cerca de las 8:00 a. m. y el apoyo de GitHub Actions respeta el intervalo configurado en tus preferencias; puede haber retrasos. No muestra montos ni nombres. Al cerrar sesión o vencer la sesión se detienen los avisos; vuelve a activarlos al iniciar sesión.</small>
   </article>;
 }
