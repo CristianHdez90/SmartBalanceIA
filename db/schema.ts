@@ -77,3 +77,13 @@ export const promotionReminders = sqliteTable('promotion_reminders', {
  weekdays:text('weekdays').notNull(),startDate:text('start_date').notNull(),endDate:text('end_date').notNull(),note:text('note').notNull().default(''),
  enabled:integer('enabled').notNull().default(1),version:integer('version').notNull().default(1),updatedAt:integer('updated_at').notNull(),
 },t=>[primaryKey({columns:[t.userId,t.id]}),index('idx_promotion_reminders_user_dates').on(t.userId,t.startDate,t.endDate),check('reminder_enabled_bool',sql`${t.enabled} IN (0,1)`)]);
+
+export const webPushSubscriptions = sqliteTable('web_push_subscriptions', {
+ id:text('id').primaryKey().notNull(),userId:text('user_id').notNull().references(()=>users.id,{onDelete:'cascade'}),
+ sessionHash:text('session_hash').notNull().references(()=>sessions.idHash,{onDelete:'cascade'}),endpoint:text('endpoint').notNull().unique(),
+ p256dh:text('p256dh').notNull(),auth:text('auth').notNull(),createdAt:integer('created_at').notNull(),updatedAt:integer('updated_at').notNull(),lastTestAt:integer('last_test_at').notNull().default(0),
+},t=>[index('idx_web_push_user').on(t.userId)]);
+export const webPushDeliveries = sqliteTable('web_push_deliveries', {
+ subscriptionId:text('subscription_id').notNull().references(()=>webPushSubscriptions.id,{onDelete:'cascade'}),day:text('day').notNull(),
+ state:text('state').notNull(),attempts:integer('attempts').notNull().default(1),retryAt:integer('retry_at').notNull(),updatedAt:integer('updated_at').notNull(),
+},t=>[primaryKey({columns:[t.subscriptionId,t.day]})]);

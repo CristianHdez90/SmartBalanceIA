@@ -6,6 +6,7 @@ import { bogotaDay } from '../domain/reminders';
 import { isPushEndpoint } from '../domain/web-push';
 
 export type PushRow = { id: string; userId: string; endpoint: string; p256dh: string; auth: string; createdAt: number };
+export class WebPushError extends Error { constructor(message:string,readonly status:number) { super(message); } }
 export const pushSessionHash = (token: string) => createHash('sha256').update(token).digest('hex');
 export function pushConfiguration() {
   const publicKey = process.env.WEB_PUSH_PUBLIC_KEY, privateKey = process.env.WEB_PUSH_PRIVATE_KEY, subject = process.env.WEB_PUSH_SUBJECT;
@@ -29,11 +30,11 @@ export class WebPushRepository {
     // Endpoint ownership cannot be reassigned by a different account. A shared browser
     // must unsubscribe its previous local subscription before explicitly enabling again.
     const result = await this.db.prepare(`INSERT INTO web_push_subscriptions(id,user_id,session_hash,endpoint,p256dh,auth,created_at,updated_at)
-      SELECT ?,?,?,?,?,?,?,? WHERE (SELECT COUNT(*) FROM web_push_subscriptions WHERE user_id=?)<10
+      SELECT ?,?,?,?,?,?,?,? WHERE (SELECT COUNT(*) FROM web_push_subscriptions WHERE user_id=?)<10 OR EXISTS(SELECT 1 FROM web_push_subscriptions WHERE user_id=? AND endpoint=?)
       ON CONFLICT(endpoint) DO UPDATE SET session_hash=excluded.session_hash,p256dh=excluded.p256dh,auth=excluded.auth,updated_at=excluded.updated_at
       WHERE web_push_subscriptions.user_id=excluded.user_id`)
-      .bind(crypto.randomUUID(),this.userId,this.sessionHash,subscription.endpoint,subscription.keys.p256dh,subscription.keys.auth,Date.now(),Date.now(),this.userId).run();
-    if (!result.meta.changes) throw new Error('No se pudo activar. Desactiva este navegador y vuelve a intentarlo; máximo 10 dispositivos por cuenta.');
+      .bind(crypto.randomUUID(),this.userId,this.sessionHash,subscription.endpoint,subscription.keys.p256dh,subscription.keys.auth,Date.now(),Date.now(),this.userId,this.userId,subscription.endpoint).run();
+    if (!result.meta.changes) throw new WebPushError('No se pudo activar. Desactiva este navegador y vuelve a intentarlo; máximo 10 dispositivos por cuenta.',409);
   }
   async status(endpoint: string) {
     return !!await this.db.prepare('SELECT id FROM web_push_subscriptions WHERE user_id=? AND session_hash=? AND endpoint=?').bind(this.userId,this.sessionHash,endpoint).first();
@@ -45,13 +46,14 @@ export class WebPushRepository {
     const now = Date.now();
     const claimed = await this.db.prepare(`UPDATE web_push_subscriptions SET last_test_at=? WHERE user_id=? AND session_hash=? AND endpoint=? AND last_test_at<? RETURNING id,user_id AS userId,endpoint,p256dh,auth,created_at AS createdAt`)
       .bind(now,this.userId,this.sessionHash,endpoint,now-60000).first<PushRow>();
-    if (!claimed) throw new Error('Activa los avisos y espera un minuto entre pruebas.');
+    if (!claimed) throw new WebPushError('Activa los avisos y espera un minuto entre pruebas.',429);
     try { await sendWebPush(claimed, 'Las notificaciones de Mi Balance IA están activadas.', 'balance-test'); }
-    catch (e) { if ([404,410].includes(pushErrorStatus(e))) await this.remove(endpoint); throw new Error('No se pudo enviar la prueba. Desactiva y vuelve a activar los avisos.'); }
+    catch (e) { if ([404,410].includes(pushErrorStatus(e))) await this.remove(endpoint); throw new WebPushError('No se pudo enviar la prueba. Desactiva y vuelve a activar los avisos.',502); }
   }
 }
 
 export async function dispatchWebPush(db: DatabaseClient, now = Date.now(), send = sendWebPush) {
+  const deadline = Date.now()+45000;
   const day = bogotaDay(now), start = Date.parse(`${day}T00:00:00-05:00`);
   // Expired/revoked sessions and disabled accounts never receive reminders.
   await db.prepare(`DELETE FROM web_push_subscriptions WHERE session_hash NOT IN (SELECT s.id_hash FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.expires_at>? AND u.status='active')`).bind(now).run();
@@ -62,9 +64,13 @@ export async function dispatchWebPush(db: DatabaseClient, now = Date.now(), send
     WHERE (d.subscription_id IS NULL OR (d.state!='sent' AND d.attempts<3 AND d.retry_at<=?))
     AND COALESCE(n.time,'08:00')<=? ORDER BY p.updated_at,p.id LIMIT 100`)
     .bind(day,now,new Intl.DateTimeFormat('en-GB',{timeZone:'America/Bogota',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(now)).all<PushRow>()).results;
-  let sent = 0, failed = 0;
+  let sent = 0, failed = 0, processed = 0;
   const plans = new Map<string, Awaited<ReturnType<RemindersRepository['read']>>>();
   for (const row of rows) {
+    if(Date.now()>=deadline) break;
+    processed++;
+    // Rotate evaluated subscriptions so a large set with no reminders cannot starve others.
+    await db.prepare('UPDATE web_push_subscriptions SET updated_at=? WHERE id=?').bind(now,row.id).run();
     let data = plans.get(row.userId);
     if (!data) { data = await new RemindersRepository(db,row.userId).read(start-10000); plans.set(row.userId,data); }
     const reminder = data.plan.find(p=>p.id===`balance-${day}` && p.at<=now && p.at>=row.createdAt);
@@ -84,5 +90,5 @@ export async function dispatchWebPush(db: DatabaseClient, now = Date.now(), send
       failed++;
     }
   }
-  return { considered:rows.length, sent, failed };
+  return { considered:rows.length, processed, sent, failed };
 }

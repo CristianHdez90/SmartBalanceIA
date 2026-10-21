@@ -28,7 +28,7 @@ export default function WebPushCard() {
     setEnabled(active);
     setMessage(active ? 'Activadas en este navegador. Recibirás un resumen diario aunque cierres esta página.' : 'Activa los avisos para recibir un resumen de pagos y promociones en este navegador.');
   },[]);
-  useEffect(()=>{ void refresh().catch(e=>setError((e as Error).message)); },[refresh]);
+  useEffect(()=>{ const timer=setTimeout(()=>void refresh().catch(e=>setError((e as Error).message)),0); return ()=>clearTimeout(timer); },[refresh]);
   async function act(action:'enable'|'disable'|'test'|'refresh') {
     setBusy(true);setError('');
     try {
@@ -59,6 +59,6 @@ export default function WebPushCard() {
   }
   return <article><h2><Bell size={20}/> Notificaciones web</h2><p role="status">{message}</p>{error&&<p className="auth-error" role="alert">{error}</p>}
     <div className="reminder-actions"><button className="primary" disabled={busy||!supported||!key} onClick={()=>void act(enabled?'disable':'enable')}>{enabled?'Desactivar en este navegador':'Activar notificaciones web'}</button>{enabled&&<button className="secondary" disabled={busy} onClick={()=>void act('test')}>Probar aviso</button>}<button className="secondary" disabled={busy} onClick={()=>void act('refresh')}>{busy?'Procesando…':'Comprobar estado'}</button></div>
-    <small>Envío diario entre las 8:00 y las 9:00 a. m., hora de Colombia, sujeto a la disponibilidad del servidor y del dispositivo. No muestra montos ni nombres. Al cerrar sesión o vencer la sesión se detienen los avisos; vuelve a activarlos al iniciar sesión.</small>
+    <small>Un resumen diario a partir de la hora elegida en Preferencias (Colombia). Vercel revisa cerca de las 8:00 a. m. y GitHub Actions cada 30 minutos como apoyo; puede haber retrasos. No muestra montos ni nombres. Al cerrar sesión o vencer la sesión se detienen los avisos; vuelve a activarlos al iniciar sesión.</small>
   </article>;
 }
