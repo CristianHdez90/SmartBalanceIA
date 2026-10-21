@@ -162,6 +162,55 @@ test('cron refuses missing or invalid credentials before touching the database',
     assert.equal((await handler.GET(new Request('https://example.test/api/cron/web-push',{headers:{authorization:'Bearer secret'}}))).status,503);
   }finally{if(original===undefined)delete process.env.CRON_SECRET;else process.env.CRON_SECRET=original;}
 });
+test('local checks only send to the authenticated account and selected browser',async()=>{
+  const f=await fixture();try {
+    const sent=[];const send=async row=>sent.push(row.endpoint);
+    await dispatchWebPush(f.db,now,send,'vercel',{userId:'bob',endpoint:subscription('alice').endpoint});
+    assert.equal(sent.length,0);
+    await dispatchWebPush(f.db,now,send,'vercel',{userId:'alice',endpoint:subscription('alice').endpoint});
+    assert.deepEqual(sent,[subscription('alice').endpoint]);
+  }finally{f.client.close();}
+});
+test('local test endpoint is disabled in production and on external hosts',async()=>{
+  const original=process.env.NODE_ENV;
+  const handler=load('app/api/web-push/local-check/route.ts',{
+    '@/src/infrastructure/database':{database:()=>assert.fail('must not access database')},
+    '@/src/infrastructure/d1-auth':{},
+    '@/src/infrastructure/request-origin':{},
+    '@/src/domain/web-push':pushDomain,
+    '@/src/infrastructure/web-push':{},
+  });
+  try {
+    process.env.NODE_ENV='production';
+    assert.equal((await handler.POST(new Request('http://localhost/api/web-push/local-check',{method:'POST'}))).status,404);
+    process.env.NODE_ENV='development';
+    assert.equal((await handler.POST(new Request('https://balance.test/api/web-push/local-check',{method:'POST'}))).status,404);
+  }finally{if(original===undefined)delete process.env.NODE_ENV;else process.env.NODE_ENV=original;}
+});
+test('local endpoint accepts all four test intervals, rate-limits calls and forwards account scope',async()=>{
+  const original=process.env.NODE_ENV,originalNow=Date.now;let clock=now,user='alice';const calls=[];
+  class AuthError extends Error {}
+  const handler=load('app/api/web-push/local-check/route.ts',{
+    '@/src/infrastructure/database':{database:()=>({})},
+    '@/src/infrastructure/d1-auth':{AuthError,D1AuthRepository:class{async requireUser(){return {id:user};}}},
+    '@/src/infrastructure/request-origin':{isAllowedOrigin:()=>true},
+    '@/src/domain/web-push':pushDomain,
+    '@/src/infrastructure/web-push':{pushConfiguration:()=>true,dispatchWebPush:async(...args)=>{calls.push(args[4]);return {sent:0,failed:0};}},
+  });
+  const request=seconds=>new Request('http://127.0.0.1:8787/api/web-push/local-check',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({seconds,endpoint:subscription('local').endpoint})});
+  try {
+    process.env.NODE_ENV='development';Date.now=()=>clock;
+    for(const seconds of [30,60,600,1200]) {
+      user=`user-${seconds}`;
+      assert.equal((await handler.POST(request(seconds))).status,200);
+      assert.equal((await handler.POST(request(seconds))).status,429);
+      clock+=seconds*1000;
+      assert.equal((await handler.POST(request(seconds))).status,200);
+      assert.deepEqual(calls.at(-1),{userId:user,endpoint:subscription('local').endpoint});
+    }
+    assert.equal((await handler.POST(request(17))).status,400);
+  }finally{Date.now=originalNow;if(original===undefined)delete process.env.NODE_ENV;else process.env.NODE_ENV=original;}
+});
 test('service worker opens only the app and never caches financial data',async()=>{
   const handlers={},shown=[],opened=[];
   const code=readFileSync(new URL('../public/push-sw.js',import.meta.url),'utf8');

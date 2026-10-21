@@ -6,6 +6,7 @@ import { addDays, bogotaDay, type DeviceReminder, type PromotionReminder, type R
 import { supportsDeviceReminders, syncDeviceReminders } from './device-reminders';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import WebPushCard from './web-push-card';
+import AuxiliaryInterval from './auxiliary-interval';
 import './reminder-center.css';
 
 type Data = { settings: ReminderSettings; promotions: PromotionReminder[]; plan: DeviceReminder[]; until: string };
@@ -68,7 +69,7 @@ export default function ReminderCenter({ userId, visible, revision }: { userId: 
       <small>También el día del vencimiento y cada día posterior mientras siga pendiente. No incluye obligaciones sin valor o sin fecha.</small>
       <label className="reminder-check"><input type="checkbox" checked={settings.promotions} onChange={e => setSettings({ ...settings, promotions: e.target.checked })}/> Promociones del día</label>
       <label>Hora de los avisos (Colombia)<input type="time" required value={settings.time} onChange={e => setSettings({ ...settings, time: e.target.value })}/></label>
-      <label>Revisión auxiliar de GitHub Actions<select value={settings.auxiliaryMinutes} onChange={e => setSettings({ ...settings, auxiliaryMinutes: Number(e.target.value) as ReminderSettings['auxiliaryMinutes'] })}><option value={0}>Desactivada</option><option value={30}>Cada 30 minutos</option><option value={60}>Cada hora</option><option value={120}>Cada 2 horas</option><option value={360}>Cada 6 horas</option><option value={1440}>Cada 24 horas</option></select></label>
+      <AuxiliaryInterval key={userId} userId={userId} value={settings.auxiliaryMinutes} onChange={auxiliaryMinutes=>setSettings({...settings,auxiliaryMinutes})} visible={visible}/>
       <small>Intervalo entre revisiones auxiliares de tu cuenta, a partir de la hora del aviso. Se guarda con tus preferencias. GitHub consulta cada 30 minutos y respeta este intervalo; puede demorarse. No repite un resumen ya enviado. Vercel mantiene su revisión diaria.</small>
       <small>El servidor enviará el resumen a partir de esta hora. GitHub Actions revisa los avisos periódicamente; puede haber retrasos.</small><div className="reminder-actions"><button className="primary" disabled={busy}>Guardar preferencias</button><button type="button" className="secondary" disabled={busy} onClick={() => void refreshManually()}>Actualizar datos</button></div>
     </form> : <p>Cargando preferencias…</p>}</article></div>

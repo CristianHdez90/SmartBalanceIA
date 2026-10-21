@@ -52,7 +52,7 @@ export class WebPushRepository {
   }
 }
 
-export async function dispatchWebPush(db: DatabaseClient, now = Date.now(), send = sendWebPush, source: 'vercel' | 'github' = 'vercel') {
+export async function dispatchWebPush(db: DatabaseClient, now = Date.now(), send = sendWebPush, source: 'vercel' | 'github' = 'vercel', scope?: { userId: string; endpoint: string }) {
   const deadline = Date.now()+45000;
   const day = bogotaDay(now), start = Date.parse(`${day}T00:00:00-05:00`);
   // Expired/revoked sessions and disabled accounts never receive reminders.
@@ -63,9 +63,10 @@ export async function dispatchWebPush(db: DatabaseClient, now = Date.now(), send
     LEFT JOIN notification_settings n ON n.user_id=p.user_id
     LEFT JOIN notification_auxiliary_checks a ON a.user_id=p.user_id
     WHERE (d.subscription_id IS NULL OR (d.state!='sent' AND d.attempts<3 AND d.retry_at<=?))
+    AND (? IS NULL OR (p.user_id=? AND p.endpoint=?))
     AND (?='vercel' OR (COALESCE(n.auxiliary_minutes,30)>0 AND (a.checked_at IS NULL OR a.checked_at+COALESCE(n.auxiliary_minutes,30)*60000<=?)))
     AND COALESCE(n.time,'08:00')<=? ORDER BY p.updated_at,p.id LIMIT 100`)
-    .bind(day,now,source,now,new Intl.DateTimeFormat('en-GB',{timeZone:'America/Bogota',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(now)).all<PushRow>()).results;
+    .bind(day,now,scope?.userId??null,scope?.userId??null,scope?.endpoint??null,source,now,new Intl.DateTimeFormat('en-GB',{timeZone:'America/Bogota',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(now)).all<PushRow>()).results;
   let sent = 0, failed = 0, processed = 0;
   const plans = new Map<string, Awaited<ReturnType<RemindersRepository['read']>>>();
   const auxiliaryClaims = new Map<string, boolean>();

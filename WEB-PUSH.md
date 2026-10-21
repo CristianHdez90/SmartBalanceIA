@@ -31,6 +31,10 @@ La hora se configura en **Notificaciones → Preferencias → Hora de los avisos
 
 ## Verificación técnica
 
+En desarrollo (`npm run dev` en `localhost` o `127.0.0.1`), el selector **Revisión auxiliar de GitHub Actions** incluye **30 segundos, 1 minuto, 10 minutos y 20 minutos** como pruebas locales. La elección se guarda por cuenta en el navegador, sin modificar el intervalo persistido del servidor. Pulsa **Iniciar prueba local** para revisar después de cada intervalo. **Detener prueba local** la cancela; al ocultar la página o salir de Notificaciones se pausa y al cerrarla termina. Cambiar de opción detiene la prueba.
+
+Este temporizador no modifica el cron de GitHub. Llama al servidor local autenticado, solo para la cuenta y la suscripción de ese navegador. El endpoint devuelve 404 en producción y fuera de localhost. Sigue respetando la hora de aviso, el estado de los pagos y el límite de un resumen diario: no es un envío repetido de prueba. Para comprobar recepción inmediata usa **Probar aviso**. No requiere migraciones nuevas.
+
 `node --test tests/web-push.test.mjs tests/reminders.test.mjs`
 
 Prueba aislamiento, sesión y revocación, hora personalizada, promociones, pagos previos al envío, doble disparo concurrente, endpoints vencidos y reintentos. La entrega real requiere permiso y prueba en un dispositivo.
