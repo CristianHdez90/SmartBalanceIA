@@ -1,0 +1,14 @@
+import { timingSafeEqual } from 'node:crypto';
+import { database } from '@/src/infrastructure/database';
+import { dispatchWebPush, pushConfiguration } from '@/src/infrastructure/web-push';
+
+export const runtime='nodejs';
+export const maxDuration=60;
+export async function GET(request: Request) {
+  const secret=process.env.CRON_SECRET, authorization=request.headers.get('authorization')??'';
+  const expected=`Bearer ${secret}`;
+  if(!secret || authorization.length!==expected.length || !timingSafeEqual(Buffer.from(authorization),Buffer.from(expected))) return new Response('Unauthorized',{status:401});
+  if(!pushConfiguration()) return Response.json({error:'Web Push is not configured'},{status:503});
+  try { return Response.json(await dispatchWebPush(database()),{headers:{'Cache-Control':'no-store'}}); }
+  catch { return Response.json({error:'Dispatch failed'},{status:503}); }
+}

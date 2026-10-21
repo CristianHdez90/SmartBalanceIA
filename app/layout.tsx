@@ -10,9 +10,11 @@ import "../src/presentation/obligations-workspace.css";
 export const metadata: Metadata = {
   title: "Mi Balance · Obligaciones e ingresos",
   description: "Tus ingresos, obligaciones y pagos mensuales en un solo lugar.",
+  manifest: "/manifest.webmanifest",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
+    apple: "/push-icon.png",
   },
 };
 

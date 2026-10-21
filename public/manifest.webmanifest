@@ -1,0 +1,12 @@
+{
+  "id": "/",
+  "name": "Mi Balance IA",
+  "short_name": "Mi Balance",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "lang": "es",
+  "background_color": "#080b1f",
+  "theme_color": "#080b1f",
+  "icons": [{ "src": "/push-icon.png", "sizes": "192x192", "type": "image/png" }, { "src": "/app-icon.png", "sizes": "512x512", "type": "image/png" }]
+}

@@ -17,7 +17,7 @@ export default function ReminderCenter({ userId, visible, revision }: { userId: 
   const alive = useRef(true), generation = useRef(0);
   const sync = useCallback(async (value: Data, action: 'sync' | 'enable' | 'disable' | 'test' = 'sync') => {
     const supported = supportsDeviceReminders(); setNative(supported);
-    if (!supported) { setDevice('Puedes administrar tus recordatorios aquí. Para recibirlos instala el APK actualizado de Mi Balance IA.'); return; }
+    if (!supported) { setDevice('Aquí puedes guardar promociones y preferencias en tu cuenta. Para actualizar los avisos del teléfono, abre la app de Mi Balance IA con la misma cuenta. Este navegador no envía notificaciones al dispositivo.'); return; }
     try {
       const result = await syncDeviceReminders(userId, value.plan, action);
       if (!alive.current) return;
@@ -25,13 +25,14 @@ export default function ReminderCenter({ userId, visible, revision }: { userId: 
       setDevice(result.enabled ? `Sincronizado: ${result.count} avisos diarios hasta el ${value.until}.` : 'Los avisos están desactivados en este dispositivo.');
     } catch (e) { if (alive.current) setDevice((e as Error).message); }
   }, [userId]);
-  const load = useCallback(async () => {
+  const load = useCallback(async (manual = false) => {
     const current = ++generation.current;
     try {
       const r = await fetch('/api/reminders', { cache: 'no-store' }), value = await r.json();
       if (!r.ok) throw new Error(value.error);
       if (!alive.current || current !== generation.current) return;
       setData(value); setSettings(previous => previous ?? value.settings); setError(''); await sync(value);
+      if (manual && alive.current && current === generation.current && !supportsDeviceReminders()) toast.success('Datos actualizados desde tu cuenta. Abre la app para sincronizar los avisos del teléfono.');
     } catch (e) { if (alive.current && current === generation.current) setError((e as Error).message); }
   }, [sync]);
   useEffect(() => {
@@ -51,10 +52,11 @@ export default function ReminderCenter({ userId, visible, revision }: { userId: 
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   async function deviceAction(action: 'enable' | 'disable' | 'test') { if (!data) return; setBusy(true); try { await sync(data, action); } finally { setBusy(false); } }
+  async function refreshManually() { setBusy(true); try { await load(true); } finally { setBusy(false); } }
   return <section className="reminder-center" hidden={!visible} aria-label="Notificaciones y calendario de promociones">
     <header><div><h1><Bell/> Notificaciones</h1><p>Pagos por revisar y tus días de promoción, en un solo calendario.</p></div><button className="primary" onClick={() => setEditor(newPromotion())}><Plus size={18}/> Registrar promoción</button></header>
     {error && <p role="alert" className="auth-error">{error} <button onClick={() => void load()}>Actualizar</button></p>}
-    <div className="reminder-cards"><article><h2><Bell size={20}/> Este dispositivo</h2><p role="status">{device}</p><div className="reminder-actions"><button className="primary" disabled={busy || !data || !native} onClick={() => void deviceAction(enabled ? 'disable' : 'enable')}>{enabled ? 'Desactivar en este dispositivo' : 'Activar notificaciones'}</button>{enabled && <button className="secondary" disabled={busy} onClick={() => void deviceAction('test')}>Probar aviso</button>}<button className="secondary" disabled={busy} onClick={() => void load()}>Sincronizar</button></div><small>Los avisos no muestran montos ni nombres de obligaciones. Abre la app para consultar los detalles.</small></article>
+    <div className="reminder-cards"><article><h2><Bell size={20}/> {native ? 'Este dispositivo' : 'Recordatorios desde la web'}</h2><p role="status">{device}</p><div className="reminder-actions">{native && <button className="primary" disabled={busy || !data} onClick={() => void deviceAction(enabled ? 'disable' : 'enable')}>{enabled ? 'Desactivar en este dispositivo' : 'Activar notificaciones'}</button>}{native && enabled && <button className="secondary" disabled={busy} onClick={() => void deviceAction('test')}>Probar aviso</button>}<button className="secondary" disabled={busy} onClick={() => void refreshManually()}>{busy ? 'Procesando…' : native ? 'Sincronizar avisos' : 'Actualizar datos'}</button></div><small>Los avisos no muestran montos ni nombres de obligaciones. Abre la app para consultar los detalles.</small></article>
     <article><h2><CalendarDays size={20}/> Preferencias</h2>{settings ? <form onSubmit={e => { e.preventDefault(); void save({ action: 'settings', settings }); }}>
       <label className="reminder-check"><input type="checkbox" checked={settings.payments} onChange={e => setSettings({ ...settings, payments: e.target.checked })}/> Pagos por revisar</label>
       <label>Avisar antes del vencimiento (días)<input type="number" min="0" max="14" required value={settings.advanceDays} onChange={e => setSettings({ ...settings, advanceDays: Number(e.target.value) })}/></label>
