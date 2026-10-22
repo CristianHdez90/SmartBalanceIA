@@ -19,7 +19,8 @@ export function useNotificationSound(){
    if(!Audio){setSoundStatus('Este navegador no admite el sonido de la campana.');return;}
    if(!audio.current||audio.current.state==='closed')audio.current=new Audio();
    const context=audio.current;
-   if(context.state==='suspended')await context.resume();
+   // Safari can report an interrupted context after locking the phone.
+   if(context.state!=='running')await context.resume();
    if(audio.current!==context)return;
    setSoundStatus(audio.current.state==='running'?'Sonido habilitado en esta página.':'El sonido se habilitará al hacer clic o pulsar una tecla en la plataforma.');
    if(pending.current)play();
@@ -28,11 +29,11 @@ export function useNotificationSound(){
  useEffect(()=>{
   const initial=setTimeout(()=>void unlock(),0);
   const gesture=()=>{void unlock();};
-  const visibility=()=>{if(!document.hidden&&pending.current)void unlock();};
+  const visibility=()=>{if(!document.hidden)void unlock();};
   const received=new Set<string>();
   const push=(event:MessageEvent)=>{if(event.data?.type!=='balance-push-received'||typeof event.data.tag!=='string'||received.has(event.data.tag))return;received.add(event.data.tag);play();if(pending.current)void unlock();};
-  window.addEventListener('pointerdown',gesture);window.addEventListener('keydown',gesture);document.addEventListener('visibilitychange',visibility);navigator.serviceWorker?.addEventListener('message',push);
-  return()=>{clearTimeout(initial);window.removeEventListener('pointerdown',gesture);window.removeEventListener('keydown',gesture);document.removeEventListener('visibilitychange',visibility);navigator.serviceWorker?.removeEventListener('message',push);void audio.current?.close().catch(()=>{});audio.current=null;};
+  window.addEventListener('pointerdown',gesture);window.addEventListener('pointerup',gesture);window.addEventListener('touchend',gesture,{passive:true});window.addEventListener('click',gesture);window.addEventListener('keydown',gesture);document.addEventListener('visibilitychange',visibility);navigator.serviceWorker?.addEventListener('message',push);
+  return()=>{clearTimeout(initial);window.removeEventListener('pointerdown',gesture);window.removeEventListener('pointerup',gesture);window.removeEventListener('touchend',gesture);window.removeEventListener('click',gesture);window.removeEventListener('keydown',gesture);document.removeEventListener('visibilitychange',visibility);navigator.serviceWorker?.removeEventListener('message',push);void audio.current?.close().catch(()=>{});audio.current=null;};
  },[unlock,play]);
  const notifySound=useCallback((items:InboxNotification[])=>{
   const previous=seen.current,fresh=previous!==null&&items.some(n=>n.active&&n.readAt===null&&!previous.has(n.id));
