@@ -1,4 +1,5 @@
 import type { DatabaseClient } from './database';
+import { todayNotifications } from '../domain/notification-inbox';
 import { dateForDay } from '../domain/finance';
 import { addDays, bogotaDay, buildReminderPlan, defaultReminderSettings, ReminderConflict, type ReminderCommand, type ReminderSettings, type PromotionReminder } from '../domain/reminders';
 
@@ -10,14 +11,14 @@ export class RemindersRepository {
     const rows = (await this.db.prepare('SELECT id,supermarket,product,weekdays,start_date AS startDate,end_date AS endDate,note,enabled,version FROM promotion_reminders WHERE user_id=? ORDER BY enabled DESC,end_date,supermarket,id').bind(this.userId).all<Omit<PromotionReminder, 'weekdays'> & { weekdays: string }>()).results;
     const promotions = rows.map(p => ({ ...p, enabled: !!p.enabled, weekdays: JSON.parse(p.weekdays) as number[] }));
     const until = addDays(bogotaDay(now), 44);
-    const pending = (await this.db.prepare(`SELECT o.id,o.month,o.due_date AS dueDate,o.due_day AS dueDay,
+    const pending = (await this.db.prepare(`SELECT o.id,o.name,o.note,o.month,o.due_date AS dueDate,o.due_day AS dueDay,
       CASE WHEN o.amount IS NULL THEN NULL ELSE o.amount
         + COALESCE((SELECT SUM(amount) FROM obligation_carries WHERE user_id=o.user_id AND target_id=o.id),0)
         - COALESCE((SELECT SUM(amount) FROM obligation_carries WHERE user_id=o.user_id AND source_id=o.id),0)
         - COALESCE((SELECT SUM(amount) FROM movements WHERE user_id=o.user_id AND obligation_id=o.id AND kind='payment'),0) END AS pending
-      FROM obligations o WHERE o.user_id=? AND o.month<=?`).bind(this.userId, until.slice(0, 7)).all<{id:string;month:string;dueDate:string|null;dueDay:number|null;pending:number|null}>()).results
+      FROM obligations o WHERE o.user_id=? AND o.month<=?`).bind(this.userId, until.slice(0, 7)).all<{id:string;name:string;note:string;month:string;dueDate:string|null;dueDay:number|null;pending:number|null}>()).results
       .map(o => ({ ...o, dueDate: o.dueDay !== null ? dateForDay(o.month, o.dueDay) : o.dueDate }));
-    return { settings, promotions, plan: buildReminderPlan(settings, promotions, pending, now), until: addDays(bogotaDay(now), 29) };
+    return { settings, promotions, todayNotifications:todayNotifications(settings,promotions,pending,now), plan: buildReminderPlan(settings, promotions, pending, now), until: addDays(bogotaDay(now), 29) };
   }
   async execute(command: ReminderCommand) {
     if (command.action === 'settings') {

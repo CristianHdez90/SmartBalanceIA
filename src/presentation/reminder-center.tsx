@@ -13,7 +13,7 @@ type Data = { settings: ReminderSettings; promotions: PromotionReminder[]; plan:
 const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const newPromotion = (): PromotionReminder => ({ id: crypto.randomUUID(), supermarket: '', product: '', weekdays: [], startDate: bogotaDay(), endDate: addDays(bogotaDay(), 90), note: '', enabled: true, version: 0 });
 
-export default function ReminderCenter({ userId, visible, revision }: { userId: string; visible: boolean; revision: unknown }) {
+export default function ReminderCenter({ userId, visible, revision, focusPromotion }: { userId: string; visible: boolean; revision: unknown; focusPromotion?:{id:string}|null }) {
   const [data, setData] = useState<Data | null>(null), [settings, setSettings] = useState<ReminderSettings | null>(null);
   const [editor, setEditor] = useState<PromotionReminder | null>(null), [error, setError] = useState(''), [busy, setBusy] = useState(false);
   const [device, setDevice] = useState('Verificando compatibilidad…'), [native, setNative] = useState(false), [enabled, setEnabled] = useState(false);
@@ -49,12 +49,17 @@ export default function ReminderCenter({ userId, visible, revision }: { userId: 
     return () => { alive.current = false; clearInterval(timer); window.removeEventListener('focus', refresh); window.removeEventListener('mi-balance-reminders-ready', refresh); document.removeEventListener('visibilitychange', refresh); };
   }, [load]);
   useEffect(() => { const timer = setTimeout(() => void load(), 400); return () => clearTimeout(timer); }, [load, revision]);
+  useEffect(()=>{
+    if(!visible||!focusPromotion||!data)return;
+    const timer=setTimeout(()=>{const card=document.getElementById('promotion-'+focusPromotion.id);card?.scrollIntoView({block:'center',behavior:'smooth'});card?.focus({preventScroll:true});},150);
+    return()=>clearTimeout(timer);
+  },[visible,focusPromotion,data]);
   async function save(payload: unknown) {
     setBusy(true); setError(''); ++generation.current;
     try {
       const r = await fetch('/api/reminders', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }), value = await r.json();
       if (!r.ok) throw new Error(value.error);
-      setData(value); setSettings(value.settings); lastSettings.current = value.settings; setEditor(null); toast.success('Recordatorios guardados'); await sync(value);
+      setData(value); setSettings(value.settings); lastSettings.current = value.settings; setEditor(null); toast.success('Recordatorios guardados'); window.dispatchEvent(new Event('balance-reminders-changed')); await sync(value);
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   async function deviceAction(action: 'enable' | 'disable' | 'test') { if (!data) return; setBusy(true); try { await sync(data, action); } finally { setBusy(false); } }
@@ -66,11 +71,10 @@ export default function ReminderCenter({ userId, visible, revision }: { userId: 
     <article><h2><CalendarDays size={20}/> Preferencias</h2>{settings ? <form onSubmit={e => { e.preventDefault(); void save({ action: 'settings', settings }); }}>
       <label className="reminder-check"><input type="checkbox" checked={settings.payments} onChange={e => setSettings({ ...settings, payments: e.target.checked })}/> Pagos por revisar</label>
       <label>Avisar antes del vencimiento (días)<input type="number" min="0" max="14" required value={settings.advanceDays} onChange={e => setSettings({ ...settings, advanceDays: Number(e.target.value) })}/></label>
-      <small>También el día del vencimiento y cada día posterior mientras siga pendiente. No incluye obligaciones sin valor o sin fecha.</small>
+      <small>Cada día desde la anticipación indicada hasta completar el pago, incluso después del vencimiento. No incluye obligaciones sin valor o sin fecha.</small>
       <label className="reminder-check"><input type="checkbox" checked={settings.promotions} onChange={e => setSettings({ ...settings, promotions: e.target.checked })}/> Promociones del día</label>
       <label>Hora de los avisos (Colombia)<input type="time" required value={settings.time} onChange={e => setSettings({ ...settings, time: e.target.value })}/></label>
-      <AuxiliaryInterval key={userId} userId={userId} value={settings.auxiliaryMinutes} onChange={auxiliaryMinutes=>setSettings({...settings,auxiliaryMinutes})} visible={visible}/>
-      <small>Intervalo entre revisiones auxiliares de tu cuenta, a partir de la hora del aviso. Se guarda con tus preferencias. GitHub consulta cada 30 minutos y respeta este intervalo; puede demorarse. No repite un resumen ya enviado. Vercel mantiene su revisión diaria.</small>
+      <AuxiliaryInterval key={userId} userId={userId}/>
       <small>El servidor enviará el resumen a partir de esta hora. GitHub Actions revisa los avisos periódicamente; puede haber retrasos.</small><div className="reminder-actions"><button className="primary" disabled={busy}>Guardar preferencias</button><button type="button" className="secondary" disabled={busy} onClick={() => void refreshManually()}>Actualizar datos</button></div>
     </form> : <p>Cargando preferencias…</p>}</article></div>
     <p className="reminder-explanation">{native ? <>Se programa un resumen diario para los próximos 30 días según las obligaciones existentes y las promociones vigentes. Abre la app para renovar el calendario y actualizar pagos hechos desde otros dispositivos. Al cerrar sesión se cancelan los avisos de este teléfono. El sistema operativo puede retrasarlos por ahorro de batería.</> : <>Los avisos web se calculan en el servidor con los pagos y promociones guardados, sin tener que abrir la página. Actívalos en cada navegador donde quieras recibirlos. En iPhone añade esta web a la pantalla de inicio antes de activarlos.</>}</p>
@@ -81,7 +85,8 @@ export default function ReminderCenter({ userId, visible, revision }: { userId: 
       <label>Condiciones o sucursal<textarea maxLength={300} value={editor.note} onChange={e => setEditor({ ...editor, note: e.target.value })}/></label><label className="reminder-check"><input type="checkbox" checked={editor.enabled} onChange={e => setEditor({ ...editor, enabled: e.target.checked })}/> Promoción activa</label><div className="reminder-actions"><button className="primary" disabled={busy}>Guardar promoción</button><button type="button" className="secondary" disabled={busy} onClick={() => setEditor(null)}>Cancelar</button></div>
     </form></>}</DialogContent></Dialog>
     <h2><ShoppingBasket size={22}/> Mis supermercados y promociones</h2><p>Registra los días que hayas confirmado con cada comercio. Estos registros son tuyos; no son ofertas verificadas automáticamente.</p>
-    <div className="reminder-promotion-grid">{data?.promotions.map(p => <article key={p.id}><h3>🛒 {p.supermarket}</h3><strong>{p.product}</strong><p>{p.weekdays.map(d => days[d]).join(', ')} · {data.settings.time}</p><small>{p.startDate} a {p.endDate} · {!p.enabled ? 'Pausada' : p.endDate < bogotaDay() ? 'Vencida' : 'Activa'}</small>{p.note && <p>{p.note}</p>}<div className="reminder-actions"><button className="secondary" disabled={busy} onClick={() => setEditor(p)}><Pencil size={16}/> Editar</button><button className="secondary" disabled={busy} onClick={() => void save({ action: 'save', ...p, enabled: !p.enabled })}>{p.enabled ? 'Pausar' : 'Activar'}</button><button className="secondary" disabled={busy} onClick={() => { if (window.confirm(`¿Eliminar el recordatorio de ${p.product} en ${p.supermarket}?`)) void save({ action: 'delete', id: p.id, version: p.version }); }}><Trash2 size={16}/> Eliminar</button></div></article>)}</div>
+    {data&&focusPromotion&&!data.promotions.some(p=>p.id===focusPromotion.id)&&<p role="status">Esta promoción ya no está registrada. Puedes consultar los detalles del aviso en la campana.</p>}
+    <div className="reminder-promotion-grid">{data?.promotions.map(p => <article key={p.id} id={'promotion-'+p.id} tabIndex={-1} className={focusPromotion?.id===p.id?'reminder-promotion-focused':undefined}><h3>🛒 {p.supermarket}</h3><strong>{p.product}</strong><p>{p.weekdays.map(d => days[d]).join(', ')} · {data.settings.time}</p><small>{p.startDate} a {p.endDate} · {!p.enabled ? 'Pausada' : p.endDate < bogotaDay() ? 'Vencida' : 'Activa'}</small>{p.note && <p>{p.note}</p>}<div className="reminder-actions"><button className="secondary" disabled={busy} onClick={() => setEditor(p)}><Pencil size={16}/> Editar</button><button className="secondary" disabled={busy} onClick={() => void save({ action: 'save', ...p, enabled: !p.enabled })}>{p.enabled ? 'Pausar' : 'Activar'}</button><button className="secondary" disabled={busy} onClick={() => { if (window.confirm(`¿Eliminar el recordatorio de ${p.product} en ${p.supermarket}?`)) void save({ action: 'delete', id: p.id, version: p.version }); }}><Trash2 size={16}/> Eliminar</button></div></article>)}</div>
     {data && !data.promotions.length && <p className="reminder-empty">Aún no tienes promociones registradas. Añade tu primer supermercado y sus días de oferta.</p>}
   </section>;
 }

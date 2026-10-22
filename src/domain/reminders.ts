@@ -38,7 +38,7 @@ export function buildReminderPlan(settings: ReminderSettings, promotions: Promot
   for (let offset = 0; offset < 30; offset++) {
     const day = addDays(today, offset), at = Date.parse(`${day}T${settings.time}:00-05:00`);
     if (at <= now + 5000) continue;
-    const payments = settings.payments && obligations.some(o => o.dueDate && o.pending !== null && o.pending > 0 && (o.dueDate <= day || o.dueDate === addDays(day, settings.advanceDays)));
+    const payments = settings.payments && obligations.some(o => o.dueDate && o.pending !== null && o.pending > 0 && o.dueDate <= addDays(day, settings.advanceDays));
     const promos = settings.promotions && promotions.some(p => p.enabled && p.startDate <= day && p.endDate >= day && p.weekdays.includes(new Date(day + 'T12:00:00Z').getUTCDay()));
     if (payments || promos) plan.push({ id: `balance-${day}`, at, title: 'Mi Balance IA', body: payments && promos ? 'Tienes pagos por revisar y promociones registradas para hoy.' : payments ? 'Tienes pagos por revisar. Consulta tus obligaciones.' : 'Tienes promociones registradas para hoy. Consulta tu calendario.', section: 'reminders' });
   }

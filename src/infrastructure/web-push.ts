@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import webpush from 'web-push';
 import type { DatabaseClient } from './database';
 import { RemindersRepository } from './reminders';
+import { NotificationInboxRepository } from './notification-inbox';
 import { bogotaDay } from '../domain/reminders';
 import { isPushEndpoint } from '../domain/web-push';
 
@@ -54,7 +55,7 @@ export class WebPushRepository {
 
 export async function dispatchWebPush(db: DatabaseClient, now = Date.now(), send = sendWebPush, source: 'vercel' | 'github' = 'vercel', scope?: { userId: string; endpoint: string }) {
   const deadline = Date.now()+45000;
-  const day = bogotaDay(now), start = Date.parse(`${day}T00:00:00-05:00`);
+  const day = bogotaDay(now);
   // Expired/revoked sessions and disabled accounts never receive reminders.
   await db.prepare(`DELETE FROM web_push_subscriptions WHERE session_hash NOT IN (SELECT s.id_hash FROM sessions s JOIN users u ON u.id=s.user_id WHERE s.expires_at>? AND u.status='active')`).bind(now).run();
   await db.prepare('DELETE FROM web_push_deliveries WHERE updated_at<?').bind(now-35*86400000).run();
@@ -87,8 +88,13 @@ export async function dispatchWebPush(db: DatabaseClient, now = Date.now(), send
     // Rotate evaluated subscriptions so a large set with no reminders cannot starve others.
     await db.prepare('UPDATE web_push_subscriptions SET updated_at=? WHERE id=?').bind(now,row.id).run();
     let data = plans.get(row.userId);
-    if (!data) { data = await new RemindersRepository(db,row.userId).read(start-10000); plans.set(row.userId,data); }
-    const reminder = data.plan.find(p=>p.id===`balance-${day}` && p.at<=now && p.at>=row.createdAt);
+    if (!data) {
+      data = await new RemindersRepository(db,row.userId).read(now); plans.set(row.userId,data);
+      await new NotificationInboxRepository(db,row.userId).refresh(data.todayNotifications,now);
+    }
+    // Catch up today's summary even when the browser was enabled after the configured hour.
+    const payments=data.todayNotifications.some(n=>n.kind==='payment'),promos=data.todayNotifications.some(n=>n.kind==='promotion');
+    const reminder = payments||promos ? {id:`balance-${day}`,body:payments&&promos?'Tienes pagos por revisar y promociones registradas para hoy.':payments?'Tienes pagos por revisar. Consulta tus obligaciones.':'Tienes promociones registradas para hoy. Consulta tu calendario.'} : undefined;
     if (!reminder) continue;
     const claimed = await db.prepare(`INSERT INTO web_push_deliveries(subscription_id,day,state,attempts,retry_at,updated_at)
       SELECT ?,?,'sending',1,?,? WHERE EXISTS(SELECT 1 FROM web_push_subscriptions p JOIN sessions s ON s.id_hash=p.session_hash JOIN users u ON u.id=p.user_id WHERE p.id=? AND s.expires_at>? AND u.status='active')

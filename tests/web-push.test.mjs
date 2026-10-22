@@ -14,8 +14,9 @@ function load(path,deps={}) {
   return module.exports;
 }
 const domain=load('src/domain/reminders.ts'),pushDomain=load('src/domain/web-push.ts');
-const {RemindersRepository}=load('src/infrastructure/reminders.ts',{'../domain/reminders':domain,'../domain/finance':load('src/domain/finance.ts')});
-const {WebPushRepository,dispatchWebPush}=load('src/infrastructure/web-push.ts',{'./reminders':{RemindersRepository},'../domain/reminders':domain,'../domain/web-push':pushDomain});
+const inboxDomain=load('src/domain/notification-inbox.ts',{'./reminders':domain});
+const {RemindersRepository}=load('src/infrastructure/reminders.ts',{'../domain/notification-inbox':inboxDomain,'../domain/reminders':domain,'../domain/finance':load('src/domain/finance.ts')});
+const {WebPushRepository,dispatchWebPush}=load('src/infrastructure/web-push.ts',{'./notification-inbox':load('src/infrastructure/notification-inbox.ts'),'./reminders':{RemindersRepository},'../domain/reminders':domain,'../domain/web-push':pushDomain});
 const before=Date.parse('2026-10-21T07:00:00-05:00'),now=Date.parse('2026-10-21T08:05:00-05:00');
 const subscription=id=>({endpoint:`https://fcm.googleapis.com/fcm/send/${id}`,keys:{p256dh:'B'.repeat(87),auth:'A'.repeat(22)}});
 async function fixture() {
@@ -25,18 +26,18 @@ async function fixture() {
   await client.execute("INSERT INTO users VALUES('alice','active'),('bob','active')");
   await client.execute('CREATE TABLE sessions(id_hash TEXT PRIMARY KEY,user_id TEXT,expires_at INTEGER)');
   await client.execute({sql:"INSERT INTO sessions VALUES('a','alice',?),('b','bob',?)",args:[now+86400000,now+86400000]});
-  await client.execute('CREATE TABLE obligations(id TEXT,user_id TEXT,month TEXT,due_date TEXT,due_day INTEGER,amount INTEGER)');
+  await client.execute('CREATE TABLE obligations(id TEXT,user_id TEXT,month TEXT,due_date TEXT,due_day INTEGER,amount INTEGER,name TEXT DEFAULT \'Obligación\',note TEXT DEFAULT \'\')');
   await client.execute('CREATE TABLE movements(user_id TEXT,obligation_id TEXT,kind TEXT,amount INTEGER)');
   await client.execute('CREATE TABLE obligation_carries(user_id TEXT,source_id TEXT,target_id TEXT,amount INTEGER)');
-  for(const file of ['0014_device_reminders.sql','0015_web_push.sql','0016_auxiliary_interval.sql']) {
+  for(const file of ['0014_device_reminders.sql','0015_web_push.sql','0016_auxiliary_interval.sql','0017_notification_inbox.sql']) {
     const sql=readFileSync(new URL('../drizzle/'+file,import.meta.url),'utf8');
     await client.batch(sql.split(/-->\s*statement-breakpoint/).filter(s=>s.trim()),'write');
   }
-  const db={prepare(sql,args=[]) {return {bind(...args){return db.prepare(sql,args);},async all(){const r=await client.execute({sql,args});return {results:r.rows.map(r=>({...r})),meta:{changes:r.rowsAffected}};},async first(){return (await this.all()).results[0]??null;},async run(){return this.all();}};}};
+  const db={prepare(sql,args=[]) {return {bind(...args){return db.prepare(sql,args);},async all(){const r=await client.execute({sql,args});return {results:r.rows.map(r=>({...r})),meta:{changes:r.rowsAffected}};},async first(){return (await this.all()).results[0]??null;},async run(){return this.all();},toQuery(){return{sql,args};}};},async batch(statements){return client.batch(statements.map(s=>s.toQuery()),'write');}};
   const alice=new WebPushRepository(db,'alice','a'),bob=new WebPushRepository(db,'bob','b');
   await alice.subscribe(subscription('alice'));await bob.subscribe(subscription('bob'));
   await db.prepare('UPDATE web_push_subscriptions SET created_at=?').bind(before).run();
-  await client.execute("INSERT INTO obligations VALUES('debt','alice','2026-10','2026-10-21',NULL,100000)");
+  await client.execute("INSERT INTO obligations(id,user_id,month,due_date,due_day,amount) VALUES('debt','alice','2026-10','2026-10-21',NULL,100000)");
   return {client,db,alice,bob};
 }
 test('rejects arbitrary URLs, local hosts, credentials and malformed subscription keys',()=>{
@@ -111,10 +112,11 @@ test('gone endpoints are removed and transient failures retry only after the lea
     assert.equal(await f.alice.status(subscription('alice').endpoint),false);
   }finally{f.client.close();}
 });
-test('enabling after the scheduled time does not send an old summary',async()=>{
+test('enabling after the scheduled time catches up today only once',async()=>{
   const f=await fixture();try {
     await f.db.prepare('UPDATE web_push_subscriptions SET created_at=?').bind(now).run();
-    assert.equal((await dispatchWebPush(f.db,now,async()=>assert.fail('must not send'))).sent,0);
+    assert.equal((await dispatchWebPush(f.db,now,async()=>{})).sent,1);
+    assert.equal((await dispatchWebPush(f.db,now+60000,async()=>assert.fail('duplicate'))).sent,0);
   }finally{f.client.close();}
 });
 test('auxiliary interval persists per account, gates repeated checks, and leaves Vercel independent',async()=>{

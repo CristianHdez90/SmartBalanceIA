@@ -13,7 +13,8 @@ function load(path, deps = {}) {
   return module.exports;
 }
 const domain = load('src/domain/reminders.ts'), finance = load('src/domain/finance.ts');
-const { RemindersRepository } = load('src/infrastructure/reminders.ts', { '../domain/reminders': domain, '../domain/finance': finance });
+const inboxDomain=load('src/domain/notification-inbox.ts',{'./reminders':domain});
+const { RemindersRepository } = load('src/infrastructure/reminders.ts', { '../domain/notification-inbox':inboxDomain, '../domain/reminders': domain, '../domain/finance': finance });
 const now = Date.parse('2026-10-21T07:00:00-05:00');
 const promotion = () => ({ id: crypto.randomUUID(), supermarket: 'Supermu', product: 'Frutas', weekdays: [3], startDate: '2026-10-21', endDate: '2026-10-28', note: 'Sucursal local', enabled: true, version: 0 });
 test('validates dates, weekdays, time, ownership and end of validity', () => {
@@ -27,13 +28,13 @@ test('Bogota time, advance notice, due day, overdue and paid exclusions', () => 
   const pending = [{ id: 'one', dueDate: '2026-10-24', pending: 100 }];
   const plan = domain.buildReminderPlan(s, [], pending, now);
   assert.equal(plan[0].at, Date.parse('2026-10-21T13:00:00Z'));
-  assert.equal(plan.some(p => p.id === 'balance-2026-10-22'), false);
+  assert.equal(plan.some(p => p.id === 'balance-2026-10-22'), true);
   assert.equal(plan.some(p => p.id === 'balance-2026-10-24'), true);
   assert.equal(plan.some(p => p.id === 'balance-2026-10-25'), true);
   assert.deepEqual(domain.buildReminderPlan(s, [], [{ ...pending[0], pending: 0 }], now), []);
   assert.deepEqual(domain.buildReminderPlan(s, [], [{ ...pending[0], pending: null }], now), []);
   assert.deepEqual(domain.buildReminderPlan(s, [], [{ ...pending[0], dueDate: null }], now), []);
-  assert.equal(domain.buildReminderPlan(s, [], pending, Date.parse('2026-10-21T08:01:00-05:00'))[0].id, 'balance-2026-10-24');
+  assert.equal(domain.buildReminderPlan(s, [], pending, Date.parse('2026-10-21T08:01:00-05:00'))[0].id, 'balance-2026-10-22');
   assert.equal(domain.bogotaDay(Date.parse('2026-10-22T02:00:00Z')), '2026-10-21');
 });
 test('weekly promotions respect expiry, pauses and consolidate private daily summaries', () => {
@@ -53,7 +54,7 @@ async function fixture() {
   const client = createClient({ url: ':memory:' });
   await client.execute('CREATE TABLE users(id TEXT PRIMARY KEY)');
   await client.execute("INSERT INTO users VALUES('alice'),('bob')");
-  await client.execute('CREATE TABLE obligations(id TEXT,user_id TEXT,month TEXT,due_date TEXT,due_day INTEGER,amount INTEGER)');
+  await client.execute('CREATE TABLE obligations(id TEXT,user_id TEXT,month TEXT,due_date TEXT,due_day INTEGER,amount INTEGER,name TEXT DEFAULT \'Obligación\',note TEXT DEFAULT \'\')');
   await client.execute('CREATE TABLE movements(user_id TEXT,obligation_id TEXT,kind TEXT,amount INTEGER)');
   await client.execute('CREATE TABLE obligation_carries(user_id TEXT,source_id TEXT,target_id TEXT,amount INTEGER)');
   const sql = readFileSync(new URL('../drizzle/0014_device_reminders.sql', import.meta.url),'utf8');
@@ -73,7 +74,7 @@ test('repository isolates settings, promotions, deletes and payments per account
     await assert.rejects(bob.execute({action:'delete',id:p.id,version:1}),domain.ReminderConflict);
     await alice.execute({action:'save',...p,version:1,enabled:false});
     await assert.rejects(alice.execute({action:'save',...p,version:1}),domain.ReminderConflict);
-    await client.execute("INSERT INTO obligations VALUES('o','alice','2026-10',NULL,24,100)");
+    await client.execute("INSERT INTO obligations(id,user_id,month,due_date,due_day,amount) VALUES('o','alice','2026-10',NULL,24,100)");
     await client.execute("INSERT INTO movements VALUES('bob','o','payment',100)");
     assert.equal((await alice.read(now)).plan[0].id,'balance-2026-10-21');
     await client.execute("INSERT INTO obligation_carries VALUES('alice','o','next',40)");

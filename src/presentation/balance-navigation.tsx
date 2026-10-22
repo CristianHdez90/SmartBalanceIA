@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { AmountPrivacyToggle } from './amount-privacy';
 import Link from 'next/link';
 import { Users, LogOut, Menu, Wallet } from 'lucide-react';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import NotificationBell from './notification-bell';
 import { Sheet, SheetContent, SheetTitle, SheetDescription, SheetTrigger } from '@/components/ui/sheet';
 
 export const balanceSections = [
@@ -17,13 +17,12 @@ export const balanceSections = [
   { id: 'reminders', label: 'Notificaciones', glyph: '🔔' },
 ];
 
-export default function BalanceNavigation({ active, onChange, user, onAdmin, onLogout, notices, noticesLoading }: {
-  notices: { id: string; name: string; date: string; overdue: boolean }[]; noticesLoading: boolean;
-  active: string; onChange: (section: string) => void;
-  user: { displayName: string; role: 'admin' | 'user' }; onAdmin: () => void; onLogout: () => void;
+export default function BalanceNavigation({ active, onChange, user, onAdmin, onLogout, notificationRevision }: {
+  notificationRevision: unknown;
+  active: string; onChange: (section: string,target?:{id:string;month?:string}) => void;
+  user: { id: string; displayName: string; role: 'admin' | 'user' }; onAdmin: () => void; onLogout: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [alertsOpen, setAlertsOpen] = useState(false);
   const navigation = <>
     <Link href="/" className="balance-brand"><span><Wallet size={21}/></span>Mi Balance <b>IA</b></Link>
     <p className="balance-nav-label">TU ESPACIO FINANCIERO</p>
@@ -36,6 +35,6 @@ export default function BalanceNavigation({ active, onChange, user, onAdmin, onL
   </>;
   return <><aside className="balance-sidebar">{navigation}</aside><header className="balance-topbar">
     <Sheet open={open} onOpenChange={setOpen}><SheetTrigger asChild><button className="balance-menu" aria-label="Abrir menú de navegación"><Menu size={22}/></button></SheetTrigger><SheetContent side="left" className="balance-mobile-nav"><SheetTitle className="sr-only">Menú de Mi Balance</SheetTitle><SheetDescription className="sr-only">Selecciona una sección de tus finanzas.</SheetDescription>{navigation}</SheetContent></Sheet>
-    <span className="balance-breadcrumb">Mi Balance <span>/</span> {balanceSections.find(section => section.id === active)?.label}</span><div className="balance-top-actions"><AmountPrivacyToggle/><Popover open={alertsOpen} onOpenChange={setAlertsOpen}><PopoverTrigger asChild><button className="balance-notifications" aria-label={notices.length ? `Avisos de pagos: ${notices.length} pendientes` : 'Avisos de pagos'}><span aria-hidden="true">🔔</span>{notices.length > 0 && <span className="notification-dot"/>}</button></PopoverTrigger><PopoverContent align="end" className="balance-alerts"><h2>Pagos por revisar</h2><button onClick={() => { onChange('reminders'); setAlertsOpen(false); }}>Configurar avisos y días de promoción</button>{noticesLoading ? <p>Los avisos estarán disponibles cuando carguen los datos del mes.</p> : notices.length ? notices.slice(0, 6).map(notice => <button key={notice.id} onClick={() => { onChange('obligations'); setAlertsOpen(false); }}>{notice.name}<small>{notice.overdue ? 'Vencimiento pasado' : 'Vence pronto'} · {notice.date.split('-').reverse().join('/')}</small></button>) : <p>No hay pagos pendientes con vencimiento hasta los próximos 7 días en el mes seleccionado.</p>}</PopoverContent></Popover><span className="balance-top-profile"><span className="balance-avatar" aria-hidden="true">{user.displayName.slice(0,1).toUpperCase()}</span><span>{user.displayName}</span></span></div>
+    <span className="balance-breadcrumb">Mi Balance <span>/</span> {balanceSections.find(section => section.id === active)?.label}</span><div className="balance-top-actions"><AmountPrivacyToggle/><NotificationBell key={user.id} userId={user.id} onChange={onChange} revision={notificationRevision}/><span className="balance-top-profile"><span className="balance-avatar" aria-hidden="true">{user.displayName.slice(0,1).toUpperCase()}</span><span>{user.displayName}</span></span></div>
   </header></>;
 }

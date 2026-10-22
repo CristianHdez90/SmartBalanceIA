@@ -86,6 +86,11 @@ export const webPushSubscriptions = sqliteTable('web_push_subscriptions', {
 export const notificationAuxiliaryChecks = sqliteTable('notification_auxiliary_checks', {
  userId:text('user_id').primaryKey().notNull().references(()=>users.id,{onDelete:'cascade'}),checkedAt:integer('checked_at').notNull(),
 });
+export const notificationInbox = sqliteTable('notification_inbox', {
+ userId:text('user_id').notNull().references(()=>users.id,{onDelete:'cascade'}),id:text('id').notNull(),day:text('day').notNull(),kind:text('kind').notNull(),
+ title:text('title').notNull(),body:text('body').notNull(),section:text('section').notNull(),active:integer('active').notNull().default(1),
+ readAt:integer('read_at'),createdAt:integer('created_at').notNull(),updatedAt:integer('updated_at').notNull(),
+},t=>[primaryKey({columns:[t.userId,t.id]}),index('idx_notification_inbox_user').on(t.userId,t.active,t.readAt,t.createdAt)]);
 export const webPushDeliveries = sqliteTable('web_push_deliveries', {
  subscriptionId:text('subscription_id').notNull().references(()=>webPushSubscriptions.id,{onDelete:'cascade'}),day:text('day').notNull(),
  state:text('state').notNull(),attempts:integer('attempts').notNull().default(1),retryAt:integer('retry_at').notNull(),updatedAt:integer('updated_at').notNull(),
