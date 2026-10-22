@@ -8,7 +8,7 @@ import './notification-bell.css';
 import {useNotificationSound} from './notification-sound';
 
 export default function NotificationBell({userId,onChange,revision}:{userId:string;onChange:(section:string,target?:{id:string;month?:string})=>void;revision:unknown}) {
-  const notifySound=useNotificationSound();
+  const {notifySound,testSound,soundStatus}=useNotificationSound();
   const [items,setItems]=useState<InboxNotification[]>([]),[unread,setUnread]=useState(0),[loading,setLoading]=useState(true),[error,setError]=useState('');
   const [open,setOpen]=useState(false),[selected,setSelected]=useState<InboxNotification|null>(null);
   const generation=useRef(0),marking=useRef(false),request=useRef<AbortController|null>(null);
@@ -47,10 +47,10 @@ export default function NotificationBell({userId,onChange,revision}:{userId:stri
     }catch(e){setError((e as Error).message);}finally{marking.current=false;}
   }
   return <>
-    <Popover open={open} onOpenChange={value=>{setOpen(value);if(value)void refresh();}}><PopoverTrigger asChild><button className="balance-notifications" aria-label={`Notificaciones: ${unread} sin leer`}><span aria-hidden="true">🔔</span>{unread>0&&<span className="notification-dot"/>}</button></PopoverTrigger>
+    <Popover open={open} onOpenChange={value=>{setOpen(value);if(value)void refresh();}}><PopoverTrigger asChild><button className="balance-notifications" aria-label={`Notificaciones: ${unread} sin leer`}><span aria-hidden="true">🔔</span>{unread>0&&<span className="notification-count" aria-hidden="true">{unread>99?'99+':unread}</span>}</button></PopoverTrigger>
       <PopoverContent align="end" className="balance-alerts notification-inbox"><h2>Notificaciones {unread>0&&<span>({unread} sin leer)</span>}</h2>
         <button onClick={()=>{onChange('notifications');setOpen(false);}}>Ver todas las notificaciones</button><button onClick={()=>{onChange('reminders');setOpen(false);}}>Configurar notificaciones</button>
-        {error&&<p role="alert">{error} <button onClick={()=>void refresh()}>Reintentar</button></p>}
+        <button onClick={()=>void testSound()}>🔊 Probar sonido</button><p role="status">{soundStatus}</p>{error&&<p role="alert">{error} <button onClick={()=>void refresh()}>Reintentar</button></p>}
         {loading?<p>Cargando notificaciones…</p>:items.length?<div className="notification-inbox-list">{items.map(item=><button key={item.id} onClick={()=>void show(item)} className={item.active&&item.readAt===null?'notification-unread':''}>
           <span>{item.active&&item.readAt===null&&<i className="notification-item-dot" aria-label="Sin leer"/>}{item.kind==='promotion'?'🛒':'📅'} {item.title}</span><small>{item.day.split('-').reverse().join('/')} · {!item.active?'Ya no vigente':item.readAt!==null?'Leída':'Sin leer'}</small>
         </button>)}</div>:!error&&<p>No hay notificaciones por mostrar.</p>}

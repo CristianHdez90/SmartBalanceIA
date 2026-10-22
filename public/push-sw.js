@@ -5,6 +5,7 @@ self.addEventListener('push', event => {
   let payload;
   try { payload = event.data?.json(); } catch { return; }
   if (!payload || typeof payload.body !== 'string') return;
+  event.waitUntil(self.clients.matchAll({type:'window',includeUncontrolled:true}).then(clients=>{for(const client of clients)client.postMessage({type:'balance-push-received',tag:typeof payload.tag==='string'?payload.tag:'balance-reminder'});}));
   event.waitUntil(self.registration.showNotification('Mi Balance IA', {
     body: payload.body, icon: '/push-icon.png', badge: '/push-icon.png',
     tag: typeof payload.tag === 'string' ? payload.tag : 'balance-reminder',
