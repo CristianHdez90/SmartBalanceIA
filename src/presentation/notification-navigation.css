@@ -1,0 +1,7 @@
+.notification-nav-chevron{margin-left:auto;flex-shrink:0;transition:transform .15s}
+.notification-nav-chevron.expanded{transform:rotate(180deg)}
+.notification-nav-children{margin:4px 0 6px 23px;padding-left:7px;border-left:1px solid #6366f144}
+.balance-sidebar .notification-nav-children button,.balance-mobile-nav .notification-nav-children button{font-size:12px;padding:10px 8px;gap:8px;line-height:1.4}
+.notification-nav-children svg{flex-shrink:0}
+.balance-sidebar .notification-nav-active,.balance-mobile-nav nav .notification-nav-active{color:#b7c1ff;background:#6366f114}
+@media(prefers-reduced-motion:reduce){.notification-nav-chevron{transition:none}}

@@ -1,4 +1,5 @@
 'use client';
+import ListPagination, {usePagination} from './list-pagination';
 import { usePrivateMoney } from './amount-privacy';
 
 import InitialFinancialSummary from './initial-financial-summary';
@@ -28,6 +29,7 @@ export default function FinanceChat({month,monthLabel,ledger}:{month:string;mont
   const [configured,setConfigured]=useState(false);
   const [conversationId,setConversationId]=useState('');
   const [turns,setTurns]=useState<CoachTurn[]>([]);
+  const pager=usePagination(turns,month+':'+(turns.at(-1)?.id??''),-1,true);
   const [draft,setDraft]=useState('');
   const [error,setError]=useState('');
   const [loading,setLoading]=useState(true);
@@ -83,7 +85,7 @@ export default function FinanceChat({month,monthLabel,ledger}:{month:string;mont
     {summaryPrepared&&<div ref={summaryPanel} className="initial-summary-panel"><InitialFinancialSummary context={context}/><button type="button" className="primary" disabled={sending||loading} onClick={()=>{composer.current?.focus({preventScroll:true});composer.current?.scrollIntoView({block:"center",behavior:"smooth"})}}>Revisar consulta preparada ↓</button></div>}
     {loading?<div className="chat-loading"><LoaderCircle className="spin" size={20}/> Cargando conversación…</div>:!configured&&<div className="chat-setup" role="status"><b>Falta activar la conexión de IA</b><p>Configura la clave de Groq API en el servidor. Después podrás enviar preguntas y recibir planes personalizados aquí.</p><button className="secondary" onClick={()=>setReload(v=>v+1)}>Comprobar conexión</button></div>}
     {!loading&&<div className="chat-welcome"><MessageCircle size={27}/><h3>¿Qué te gustaría mejorar?</h3><p>Empieza con una pregunta o elige una idea.</p><div className="chat-suggestions">{suggestions.map(s=><button key={s.title} disabled={sending||clearing} onClick={()=>{setDraft(s.text);requestId.current=null;}}>{s.title}<span>↗</span></button>)}</div></div>}
-    <div className="chat-messages" aria-label="Conversación guardada">{turns.map(turn=><div key={turn.id} className="chat-turn"><article className="chat-message chat-user"><span>Tú</span><p>{money.hidden ? 'Mensaje oculto por privacidad' : turn.question}</p></article><article className="chat-message chat-assistant"><span><Bot size={15}/> Asistente IA</span><p>{money.hidden ? 'Respuesta oculta por privacidad' : turn.answer}</p><small>{new Intl.DateTimeFormat('es-CO',{timeZone:'America/Bogota',dateStyle:'short',timeStyle:'short'}).format(turn.createdAt)}{includeContext?' · Basado en los datos disponibles al consultar':''}</small></article></div>)}<div ref={bottom}/></div>
+    <div className="chat-messages" aria-label="Conversación guardada">{pager.items.map(turn=><div key={turn.id} className="chat-turn"><article className="chat-message chat-user"><span>Tú</span><p>{money.hidden ? 'Mensaje oculto por privacidad' : turn.question}</p></article><article className="chat-message chat-assistant"><span><Bot size={15}/> Asistente IA</span><p>{money.hidden ? 'Respuesta oculta por privacidad' : turn.answer}</p><small>{new Intl.DateTimeFormat('es-CO',{timeZone:'America/Bogota',dateStyle:'short',timeStyle:'short'}).format(turn.createdAt)}{includeContext?' · Basado en los datos disponibles al consultar':''}</small></article></div>)}<div ref={bottom}/></div><ListPagination pager={pager} label="conversación IA" disabled={sending||loading}/>
     {sending&&<p className="chat-loading" role="status"><LoaderCircle className="spin" size={18}/> Preparando una respuesta…</p>}
     {error&&<div className="error" role="alert">{error}<button className="text-button" disabled={sending} onClick={()=>setReload(v=>v+1)}>Actualizar</button></div>}
     <form onSubmit={send} className="chat-composer"><label htmlFor="finance-question">Tu consulta</label><Textarea ref={composer} id="finance-question" value={money.hidden ? "" : draft} disabled={sending || money.hidden} maxLength={2000} onChange={e=>{setDraft(e.target.value);requestId.current=null}} placeholder="Por ejemplo: ¿cómo distribuyo mi próximo ingreso sin atrasarme en los pagos?" rows={3}/><div className="chat-send-row"><small>{draft.length}/2000 · {includeContext?'Con resumen del mes':'Consulta general'}</small><button className="primary" disabled={loading||sending||clearing||!configured||!conversationId||!draft.trim()}>{sending?<LoaderCircle className="spin" size={17}/>:<Send size={17}/>} {sending?'Consultando…':'Enviar consulta'}</button></div></form>

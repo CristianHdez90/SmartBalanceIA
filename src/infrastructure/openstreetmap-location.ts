@@ -18,6 +18,7 @@ export class NominatimGeocoder implements Geocoder {
 }
 
 function storeType(tags:Record<string,string>):NearbyStoreType {
+  if(tags.amenity==='pharmacy'||tags.shop==='chemist')return 'Droguería';
   if(tags.amenity==='fuel')return 'Estación de gasolina';
   if(tags.shop==='butcher')return 'Carnicería';
   if(tags.shop==='supermarket')return 'Supermercado';
@@ -29,7 +30,7 @@ export class OverpassNearbyStoreFinder implements NearbyStoreFinder {
   constructor(private readonly request:typeof fetch=fetch){}
   async find(latitude:number,longitude:number,radiusMeters:number){
     const around=`around:${radiusMeters},${latitude},${longitude}`;
-    const query=`[out:json][timeout:20];(nwr(${around})[shop~"^(supermarket|convenience|butcher)$"];nwr(${around})[amenity="fuel"];);out center tags 60;`;
+    const query=`[out:json][timeout:20];(nwr(${around})[shop~"^(supermarket|convenience|butcher|chemist)$"];nwr(${around})[amenity~"^(fuel|pharmacy)$"];);out center tags;`;
     const endpoints=['https://overpass.private.coffee/api/interpreter','https://overpass-api.de/api/interpreter','https://overpass.kumi.systems/api/interpreter'];
     let response:Response|undefined;
     for(const endpoint of endpoints){
@@ -41,9 +42,10 @@ export class OverpassNearbyStoreFinder implements NearbyStoreFinder {
     return (data.elements??[]).flatMap((item):NearbyStore[]=>{
       const lat=item.lat??item.center?.lat,lon=item.lon??item.center?.lon,tags=item.tags??{};
       if(!Number.isFinite(lat)||!Number.isFinite(lon))return [];
+      if(distanceKm(latitude,longitude,lat!,lon!)*1000>radiusMeters)return [];
       const type=storeType(tags);const name=(tags.name||tags.brand||type).trim();
       const address=[tags['addr:street'],tags['addr:housenumber'],tags['addr:neighbourhood']||tags['addr:suburb']].filter(Boolean).join(' ');
-      return [{id:`${item.type??'place'}-${item.id??`${lat}-${lon}`}`,name,type,distanceKm:Number(distanceKm(latitude,longitude,lat!,lon!).toFixed(2)),latitude:lat!,longitude:lon!,address}];
+      return [{id:`${item.type??'place'}-${item.id??`${lat}-${lon}`}`,name,type,distanceKm:Number(distanceKm(latitude,longitude,lat!,lon!).toFixed(2)),latitude:lat!,longitude:lon!,address,city:tags['addr:city']||'',website:tags.website||tags['contact:website']||'',phone:tags.phone||tags['contact:phone']||''}];
     }).sort((a,b)=>a.distanceKm-b.distanceKm).slice(0,40);
   }
 }

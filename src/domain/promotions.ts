@@ -1,4 +1,4 @@
-export type NearbyStoreType = 'Supermercado' | 'Carnicería' | 'Minimercado' | 'Estación de gasolina' | 'Otro';
+export type NearbyStoreType = 'Supermercado' | 'Carnicería' | 'Minimercado' | 'Estación de gasolina' | 'Droguería' | 'Otro';
 
 export interface NearbyStore {
   id: string;
@@ -8,6 +8,9 @@ export interface NearbyStore {
   latitude: number;
   longitude: number;
   address: string;
+  website?: string;
+  city?: string;
+  phone?: string;
 }
 
 export interface PromotionItem {
@@ -19,6 +22,7 @@ export interface PromotionItem {
   regularPrice: string;
   discount: string;
   validUntil: string;
+  validFrom?: string;
   conditions: string;
   sourceUrl: string;
 }

@@ -1,10 +1,12 @@
 'use client';
+import ListPagination, {usePagination} from './list-pagination';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Bell, CalendarDays, Pencil, Plus, ShoppingBasket, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { addDays, bogotaDay, type DeviceReminder, type PromotionReminder, type ReminderSettings } from '../domain/reminders';
 import { isNativeApp, supportsDeviceReminders, syncDeviceReminders } from './device-reminders';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
+import StoreLogo from './store-logo';
 import WebPushCard from './web-push-card';
 import AuxiliaryInterval from './auxiliary-interval';
 import './reminder-center.css';
@@ -13,13 +15,14 @@ type Data = { settings: ReminderSettings; promotions: PromotionReminder[]; plan:
 const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
 const newPromotion = (): PromotionReminder => ({ id: crypto.randomUUID(), supermarket: '', website:'', city:'', address:'', phone:'', product: '', weekdays: [], startDate: bogotaDay(), endDate: addDays(bogotaDay(), 90), note: '', enabled: true, version: 0 });
 
-export default function ReminderCenter({ userId, visible, revision, focusPromotion }: { userId: string; visible: boolean; revision: unknown; focusPromotion?:{id:string}|null }) {
+export default function ReminderCenter({ userId, visible, revision, focusPromotion, mode = 'settings' }: { userId: string; visible: boolean; revision: unknown; mode?: 'settings' | 'promotions'; focusPromotion?:{id:string}|null }) {
   const [data, setData] = useState<Data | null>(null), [settings, setSettings] = useState<ReminderSettings | null>(null);
   const [editor, setEditor] = useState<PromotionReminder | null>(null), [error, setError] = useState(''), [busy, setBusy] = useState(false);
   const [device, setDevice] = useState('Verificando compatibilidad…'), [native, setNative] = useState(false), [enabled, setEnabled] = useState(false);
   const alive = useRef(true), generation = useRef(0);
   const lastSettings = useRef<ReminderSettings | null>(null);
   const sync = useCallback(async (value: Data, action: 'sync' | 'enable' | 'disable' | 'test' = 'sync') => {
+    if(mode==='promotions')return;
     const supported = supportsDeviceReminders(); setNative(isNativeApp());
     if (!supported) { if (isNativeApp()) setDevice('Actualiza el APK o recarga la aplicación para conectar los avisos de este dispositivo.'); return; }
     try {
@@ -28,7 +31,7 @@ export default function ReminderCenter({ userId, visible, revision, focusPromoti
       setEnabled(result.enabled);
       setDevice(result.enabled ? `Avisos del dispositivo activados. Se aplicarán las preferencias guardadas.` : 'Los avisos están desactivados en este dispositivo.');
     } catch (e) { if (alive.current) setDevice((e as Error).message); }
-  }, [userId]);
+  }, [userId,mode]);
   const load = useCallback(async (manual = false) => {
     const current = ++generation.current;
     try {
@@ -59,6 +62,13 @@ export default function ReminderCenter({ userId, visible, revision, focusPromoti
     const timer=setTimeout(()=>{const card=document.getElementById('promotion-'+focusPromotion.id);card?.scrollIntoView({block:'center',behavior:'smooth'});card?.focus({preventScroll:true});},150);
     return()=>clearTimeout(timer);
   },[visible,focusPromotion,data]);
+  useEffect(()=>{
+    if(mode!=='promotions')return;
+    const add=(event:Event)=>{const draft=(event as CustomEvent<Partial<PromotionReminder>>).detail;setError('');setEditor({...newPromotion(),...draft,id:crypto.randomUUID(),version:0,enabled:true});};
+    window.addEventListener('balance-add-promotion',add);
+    return()=>window.removeEventListener('balance-add-promotion',add);
+  },[mode]);
+  const pager=usePagination(data?.promotions??[],userId+JSON.stringify(focusPromotion),(data?.promotions??[]).findIndex(p=>p.id===focusPromotion?.id));
   async function save(payload: unknown) {
     setBusy(true); setError(''); ++generation.current;
     try {
@@ -70,9 +80,9 @@ export default function ReminderCenter({ userId, visible, revision, focusPromoti
   async function deviceAction(action: 'enable' | 'disable' | 'test') { if (!data) return; setBusy(true); try { await sync(data, action); } finally { setBusy(false); } }
   async function refreshManually() { setBusy(true); try { await load(true); } finally { setBusy(false); } }
   return <section className="reminder-center" hidden={!visible} aria-label="Notificaciones y calendario de promociones">
-    <header><div><h1><Bell/> Notificaciones</h1><p>Pagos por revisar y tus días de promoción, en un solo calendario.</p></div><button className="primary" onClick={() => setEditor(newPromotion())}><Plus size={18}/> Registrar promoción</button></header>
+    <header><div><h1><Bell/> {mode==='promotions'?'Mis supermercados y promociones':'Preferencias de avisos'}</h1><p>{mode==='promotions'?'Tus comercios y días de promoción guardados.':'Configura los avisos de pagos y promociones.'}</p></div>{mode==='promotions'&&<button className="primary" onClick={() => setEditor(newPromotion())}><Plus size={18}/> Registrar promoción</button>}</header>
     {error && !editor && <p role="alert" className="auth-error">{error} <button onClick={() => void load()}>Actualizar</button></p>}
-    <div className="reminder-cards">{!native ? <WebPushCard key={userId}/> : <article><h2><Bell size={20}/> {native ? 'Este dispositivo' : 'Recordatorios desde la web'}</h2><p role="status">{device}</p><div className="reminder-actions">{native && <button className="primary" disabled={busy || !data} onClick={() => void deviceAction(enabled ? 'disable' : 'enable')}>{enabled ? 'Desactivar en este dispositivo' : 'Activar notificaciones'}</button>}{native && enabled && <button className="secondary" disabled={busy} onClick={() => void deviceAction('test')}>Probar aviso</button>}<button className="secondary" disabled={busy} onClick={() => void refreshManually()}>{busy ? 'Procesando…' : native ? 'Sincronizar avisos' : 'Actualizar datos'}</button></div><small>Los avisos no muestran montos ni nombres de obligaciones. Abre la app para consultar los detalles.</small></article>}
+    {mode==='settings'&&<><div className="reminder-cards">{!native ? <WebPushCard key={userId}/> : <article><h2><Bell size={20}/> {native ? 'Este dispositivo' : 'Recordatorios desde la web'}</h2><p role="status">{device}</p><div className="reminder-actions">{native && <button className="primary" disabled={busy || !data} onClick={() => void deviceAction(enabled ? 'disable' : 'enable')}>{enabled ? 'Desactivar en este dispositivo' : 'Activar notificaciones'}</button>}{native && enabled && <button className="secondary" disabled={busy} onClick={() => void deviceAction('test')}>Probar aviso</button>}<button className="secondary" disabled={busy} onClick={() => void refreshManually()}>{busy ? 'Procesando…' : native ? 'Sincronizar avisos' : 'Actualizar datos'}</button></div><small>Los avisos no muestran montos ni nombres de obligaciones. Abre la app para consultar los detalles.</small></article>}
     <article><h2><CalendarDays size={20}/> Preferencias</h2>{settings ? <form onSubmit={e => { e.preventDefault(); void save({ action: 'settings', settings }); }}>
       <label className="reminder-check"><input type="checkbox" checked={settings.payments} onChange={e => setSettings({ ...settings, payments: e.target.checked })}/> Pagos por revisar</label>
       <label>Avisar antes del vencimiento (días)<input type="number" min="0" max="14" required value={settings.advanceDays} onChange={e => setSettings({ ...settings, advanceDays: Number(e.target.value) })}/></label>
@@ -82,7 +92,7 @@ export default function ReminderCenter({ userId, visible, revision, focusPromoti
       <AuxiliaryInterval seconds={settings.repeatSeconds??86400} onChange={repeatSeconds=>setSettings({...settings,repeatSeconds})}/>
       <small>El servidor enviará el resumen a partir de esta hora. GitHub Actions revisa los avisos periódicamente; puede haber retrasos.</small><div className="reminder-actions"><button className="primary" disabled={busy}>Guardar preferencias</button><button type="button" className="secondary" disabled={busy} onClick={() => void refreshManually()}>Actualizar datos</button></div>
     </form> : <p>Cargando preferencias…</p>}</article></div>
-    <p className="reminder-explanation">{native ? <>En la versión nueva del APK los avisos se calculan desde el servidor con las preferencias guardadas y se abren en tu bandeja. Requieren activar este dispositivo. Las versiones anteriores mantienen su calendario local diario. Al cerrar sesión se detienen los envíos. La ejecución del servidor y el ahorro de batería pueden retrasarlos.</> : <>Los avisos web se calculan en el servidor con los pagos y promociones guardados, sin tener que abrir la página. Actívalos en cada navegador donde quieras recibirlos. En iPhone añade esta web a la pantalla de inicio antes de activarlos.</>}</p>
+    <p className="reminder-explanation">{native ? <>En la versión nueva del APK los avisos se calculan desde el servidor con las preferencias guardadas y se abren en tu bandeja. Requieren activar este dispositivo. Las versiones anteriores mantienen su calendario local diario. Al cerrar sesión se detienen los envíos. La ejecución del servidor y el ahorro de batería pueden retrasarlos.</> : <>Los avisos web se calculan en el servidor con los pagos y promociones guardados, sin tener que abrir la página. Actívalos en cada navegador donde quieras recibirlos. En iPhone añade esta web a la pantalla de inicio antes de activarlos.</>}</p></>}
     <Dialog open={!!editor && visible} onOpenChange={open => { if (!open && !busy) setEditor(null); }}><DialogContent className="editor reminder-center reminder-modal" showCloseButton={!busy}><DialogTitle>{editor?.version ? 'Editar promoción' : 'Registrar promoción'}</DialogTitle><DialogDescription>Registra el supermercado, los productos y sus días de promoción.</DialogDescription>{editor && <><p className="auth-error" role="alert">{error}</p><form onSubmit={e => { e.preventDefault(); if (!editor.weekdays.length) { setError('Selecciona al menos un día de promoción.'); return; } void save({ action: 'save', ...editor }); }}>
       <div className="reminder-form-grid"><label>Supermercado<input required minLength={2} maxLength={80} list="supermarket-options" value={editor.supermarket} onChange={e => setEditor({ ...editor, supermarket: e.target.value })}/><datalist id="supermarket-options"><option>Supermu</option><option>Éxito</option><option>Olímpica</option></datalist></label><label>Producto o categoría<input required minLength={2} maxLength={120} placeholder="Ej. frutas y verduras" value={editor.product} onChange={e => setEditor({ ...editor, product: e.target.value })}/></label>
       <label>Página web<input type="url" maxLength={500} placeholder="https://www.supermercado.com" value={editor.website} onChange={e=>setEditor({...editor,website:e.target.value})}/></label>
@@ -93,9 +103,11 @@ export default function ReminderCenter({ userId, visible, revision, focusPromoti
       <fieldset><legend>Días de promoción (cada semana durante la vigencia)</legend><div className="reminder-days">{days.map((day, index) => <label key={day}><input type="checkbox" checked={editor.weekdays.includes(index)} onChange={e => setEditor({ ...editor, weekdays: e.target.checked ? [...editor.weekdays, index].sort() : editor.weekdays.filter(d => d !== index) })}/>{day}</label>)}</div></fieldset>
       <label>Condiciones o sucursal<textarea maxLength={300} value={editor.note} onChange={e => setEditor({ ...editor, note: e.target.value })}/></label><label className="reminder-check"><input type="checkbox" checked={editor.enabled} onChange={e => setEditor({ ...editor, enabled: e.target.checked })}/> Promoción activa</label><div className="reminder-actions"><button className="primary" disabled={busy}>Guardar promoción</button><button type="button" className="secondary" disabled={busy} onClick={() => setEditor(null)}>Cancelar</button></div>
     </form></>}</DialogContent></Dialog>
-    <h2><ShoppingBasket size={22}/> Mis supermercados y promociones</h2><p>Registra los días que hayas confirmado con cada comercio. Estos registros son tuyos; no son ofertas verificadas automáticamente.</p>
+    {mode==='promotions'&&<><h2><ShoppingBasket size={22}/> Mis supermercados y promociones</h2><p>Registra los días que hayas confirmado con cada comercio. Estos registros son tuyos; no son ofertas verificadas automáticamente.</p>
     {data&&focusPromotion&&!data.promotions.some(p=>p.id===focusPromotion.id)&&<p role="status">Esta promoción ya no está registrada. Puedes consultar los detalles del aviso en la campana.</p>}
-    <div className="reminder-promotion-grid">{data?.promotions.map(p => <article key={p.id} id={'promotion-'+p.id} tabIndex={-1} className={focusPromotion?.id===p.id?'reminder-promotion-focused':undefined}><h3>🛒 {p.supermarket}</h3><strong>{p.product}</strong><p>{p.weekdays.map(d => days[d]).join(', ')} · {data.settings.time}</p><small>{p.startDate} a {p.endDate} · {!p.enabled ? 'Pausada' : p.endDate < bogotaDay() ? 'Vencida' : 'Activa'}</small>{p.note && <p>{p.note}</p>}{p.city&&<p>Ciudad: {p.city}</p>}{p.address&&<p>Dirección: {p.address}</p>}{p.phone&&<p>Teléfono: <a href={'tel:'+p.phone.replace(/[^+0-9]/g,'')}>{p.phone}</a></p>}<div className="reminder-actions">{p.website&&<a href={p.website} target="_blank" rel="noopener noreferrer">Página web ↗</a>}{p.address&&<a href={'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent([p.supermarket,p.address,p.city].filter(Boolean).join(', '))} target="_blank" rel="noopener noreferrer">Ver dirección ↗</a>}<a href={'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(p.supermarket+' '+(p.city||'cerca de mí'))} target="_blank" rel="noopener noreferrer">Buscar sucursales cercanas ↗</a></div><div className="reminder-actions"><button className="secondary" disabled={busy} onClick={() => setEditor(p)}><Pencil size={16}/> Editar</button><button className="secondary" disabled={busy} onClick={() => void save({ action: 'save', ...p, enabled: !p.enabled })}>{p.enabled ? 'Pausar' : 'Activar'}</button><button className="secondary" disabled={busy} onClick={() => { if (window.confirm(`¿Eliminar el recordatorio de ${p.product} en ${p.supermarket}?`)) void save({ action: 'delete', id: p.id, version: p.version }); }}><Trash2 size={16}/> Eliminar</button></div></article>)}</div>
+    <div className="reminder-promotion-grid">{pager.items.map(p => <article key={p.id} id={'promotion-'+p.id} tabIndex={-1} className={focusPromotion?.id===p.id?'reminder-promotion-focused':undefined}><h3><StoreLogo website={p.website} name={p.supermarket}/> {p.supermarket}</h3><strong>{p.product}</strong><p>{p.weekdays.map(d => days[d]).join(', ')} · {data?.settings.time}</p><small>{p.startDate} a {p.endDate} · {!p.enabled ? 'Pausada' : p.endDate < bogotaDay() ? 'Vencida' : 'Activa'}</small>{p.note && <p>{p.note}</p>}{p.city&&<p>Ciudad: {p.city}</p>}{p.address&&<p>Dirección: {p.address}</p>}{p.phone&&<p>Teléfono: <a href={'tel:'+p.phone.replace(/[^+0-9]/g,'')}>{p.phone}</a></p>}<div className="reminder-actions">{p.website&&<a href={p.website} target="_blank" rel="noopener noreferrer">Página web ↗</a>}{p.address&&<a href={'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent([p.supermarket,p.address,p.city].filter(Boolean).join(', '))} target="_blank" rel="noopener noreferrer">Ver dirección ↗</a>}<a href={'https://www.google.com/maps/search/?api=1&query='+encodeURIComponent(p.supermarket+' '+(p.city||'cerca de mí'))} target="_blank" rel="noopener noreferrer">Buscar sucursales cercanas ↗</a></div><div className="reminder-actions"><button className="secondary" disabled={busy} onClick={() => setEditor(p)}><Pencil size={16}/> Editar</button><button className="secondary" disabled={busy} onClick={() => void save({ action: 'save', ...p, enabled: !p.enabled })}>{p.enabled ? 'Pausar' : 'Activar'}</button><button className="secondary" disabled={busy} onClick={() => { if (window.confirm(`¿Eliminar el recordatorio de ${p.product} en ${p.supermarket}?`)) void save({ action: 'delete', id: p.id, version: p.version }); }}><Trash2 size={16}/> Eliminar</button></div></article>)}</div>
+    <ListPagination pager={pager} label="mis supermercados y promociones" disabled={busy}/>
     {data && !data.promotions.length && <p className="reminder-empty">Aún no tienes promociones registradas. Añade tu primer supermercado y sus días de oferta.</p>}
+    </>}
   </section>;
 }

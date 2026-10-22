@@ -1,4 +1,5 @@
 'use client';
+import ListPagination, {usePagination} from './list-pagination';
 import { usePrivateMoney } from './amount-privacy';
 
 
@@ -52,6 +53,7 @@ export default function FinancialGoals({ onCoach }: { onCoach: () => void }) {
     catch (error) { setError((error as Error).message); } finally { setSaving(false); }
   }
   const visible = goals.filter(goal => Boolean(goal.archived) === archived);
+  const pager=usePagination(visible,String(archived));
   return <div className="financial-goals">
     <div className="page-heading"><div><h1>Metas financieras</h1><p className="muted">Tus objetivos de ahorro e inversión.</p></div><button className="primary" disabled={loading || saving || !!error} onClick={() => open()}><Plus size={18}/>Nueva meta</button></div>
     <MonthlyBackup scope="goals" month={new Date().toISOString().slice(0,7)} disabled={loading||saving||!!error} onRestored={()=>void reload()}/>
@@ -59,7 +61,7 @@ export default function FinancialGoals({ onCoach }: { onCoach: () => void }) {
     {error && <p className="error" role="alert">{error}<button className="secondary" disabled={loading || saving} onClick={() => void reload()}>Reintentar</button></p>}
     {notice && <p className="goals-notice" role="status">{notice}</p>}
     {loading ? <div className="empty" role="status"><LoaderCircle className="spin"/>Cargando tus metas…</div> : <>
-      <div className="goals-grid">{visible.map(goal => {
+      <div className="goals-grid">{pager.items.map(goal => {
         const progress = goalProgress(goal);
         return <article className="goal-card" key={goal.id} style={{ '--goal-color': goalColors[goal.color] } as CSSProperties}>
           <div className="goal-card-top"><span className="goal-emoji" role="img" aria-label={iconLabels[goal.icon]}>{goalIcons[goal.icon]}</span><time dateTime={goal.dueDate} title={goal.dueDate.split('-').reverse().join('/')}>{new Intl.DateTimeFormat('es-CO', { month: 'short', year: 'numeric' }).format(new Date(`${goal.dueDate}T12:00:00`))}</time></div>
@@ -69,6 +71,7 @@ export default function FinancialGoals({ onCoach }: { onCoach: () => void }) {
           <div className="goal-actions">{!goal.archived && <><button disabled={saving} className="goal-contribute" onClick={() => open(goal, true)}><Plus size={15}/>Registrar ahorro</button><button disabled={saving} aria-label={`Editar ${goal.name}`} onClick={() => open(goal)}><Pencil size={16}/></button></>}<button disabled={saving} aria-label={`${goal.archived ? 'Restaurar' : 'Archivar'} ${goal.name}`} onClick={() => void archive(goal)}>{goal.archived ? <RotateCcw size={16}/> : <Archive size={16}/>}</button></div>
         </article>;
       })}</div>
+      <ListPagination pager={pager} label="metas" disabled={saving}/>
       {!visible.length && !error && <div className="goal-empty"><span role="img" aria-label="Objetivo">🎯</span><h2>{archived ? 'No tienes metas archivadas' : 'Dale un destino a tus ahorros'}</h2><p>{archived ? 'Las metas que archives aparecerán aquí y podrás restaurarlas.' : 'Crea tu primera meta, define el monto y elige cuándo quieres alcanzarla.'}</p>{!archived && <button className="primary" onClick={() => open()}><Plus size={17}/>Crear mi primera meta</button>}</div>}
       <section className="goal-advisor"><h2><Sparkles size={19}/>Planifica con tu asistente IA</h2><p>Explora cómo organizar tu presupuesto para avanzar hacia tus objetivos. Puedes incluir el nombre, el monto pendiente y la fecha de tu meta en tu consulta.</p><button className="text-button" onClick={onCoach}>Crear un plan con el asistente →</button></section>
       <p className="goals-help">Tus metas se guardan en tu cuenta y se conservan entre meses. Registrar ahorro aquí solo actualiza su progreso; no modifica los ingresos, gastos ni el disponible mensual.</p>

@@ -1,0 +1,3 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import ts from 'typescript';
+const m={exports:{}};new Function('exports',ts.transpileModule(fs.readFileSync('src/domain/expense-report.ts','utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(m.exports);const {expenseBreakdown}=m.exports;
+test('groups amounts, percentages and tied highest categories',()=>{const {total,rows}=expenseBreakdown([{category:'A',amount:30},{category:'A',amount:20},{category:'B',amount:50},{category:'C',amount:0}]);assert.equal(total,100);assert.deepEqual(rows.map(r=>[r.amount,r.percentage,r.highest]),[[50,50,true],[50,50,true]]);assert.deepEqual(expenseBreakdown([]),{total:0,rows:[]});});
