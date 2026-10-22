@@ -14,7 +14,8 @@ export const balanceSections = [
   { id: 'goals', label: 'Metas', glyph: '◇' },
   { id: 'coach', label: 'Asistente IA', glyph: '✦' },
   { id: 'promotions', label: 'Promociones', glyph: '📍' },
-  { id: 'reminders', label: 'Notificaciones', glyph: '🔔' },
+  { id: 'notifications', label: 'Bandeja de notificaciones', glyph: '🔔' },
+  { id: 'reminders', label: 'Preferencias de avisos', glyph: '🔔' },
 ];
 
 export default function BalanceNavigation({ active, onChange, user, onAdmin, onLogout, notificationRevision }: {

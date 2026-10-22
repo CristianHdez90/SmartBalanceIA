@@ -30,3 +30,11 @@ export async function POST(request:Request) {
     return json(await repo.list());
   }catch(e){return failure(e);}
 }
+
+export async function DELETE(request:Request){
+ if(!isAllowedOrigin(request))return json({error:'Origen no permitido'},403);
+ try{const db=database(),user=await new D1AuthRepository(db).requireUser(request);
+ const {ids}=z.object({ids:z.array(z.string().min(1).max(200)).min(1).max(100)}).strict().parse(await request.json());
+ return json(await new NotificationInboxRepository(db,user.id).remove([...new Set(ids)]));
+ }catch(e){return failure(e);}
+}

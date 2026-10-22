@@ -86,3 +86,15 @@ test('payment destination identifies its exact month and cannot target another a
   assert.equal(other.items[0].targetId,null);
  }finally{f.client.close();}
 });
+
+test('deleting selected notifications is scoped and does not recreate them on refresh',async()=>{
+ const f=await fixture();try{
+ const notices=todayNotifications(domain.defaultReminderSettings,[promo],[],now);
+ await f.alice.refresh(notices,now);await f.bob.refresh(notices,now);
+ await f.alice.remove([notices[0].id]);
+ assert.equal((await f.alice.refresh(notices,now+1000)).items.length,0);
+ assert.equal((await f.bob.list()).items.length,1);
+ assert.equal(await f.alice.markRead(notices[0].id),false);
+ assert.equal((await f.alice.refresh(todayNotifications(domain.defaultReminderSettings,[promo],[],now+86400000),now+86400000)).items.length,1);
+ }finally{f.client.close();}
+});

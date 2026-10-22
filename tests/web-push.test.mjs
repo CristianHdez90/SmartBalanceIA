@@ -221,9 +221,9 @@ test('service worker opens only the app and never caches financial data',async()
   let promise;
   handlers.push({data:{json:()=>({body:'Tienes pagos por revisar.',url:'https://evil.test'})},waitUntil:p=>promise=p});
   await promise;
-  assert.equal(shown[0][1].data.url,'/?section=reminders');
+  assert.equal(shown[0][1].data.url,'/?section=notifications');
   handlers.notificationclick({notification:{close(){}},waitUntil:p=>promise=p});await promise;
-  assert.deepEqual(opened,['https://balance.test/?section=reminders']);
+  assert.deepEqual(opened,['https://balance.test/?section=notifications']);
 });
 
 test('saved repeating frequency is shared by frontend and GitHub, with atomic deduplication and disable',async()=>{

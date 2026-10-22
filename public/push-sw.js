@@ -8,13 +8,13 @@ self.addEventListener('push', event => {
   event.waitUntil(self.registration.showNotification('Mi Balance IA', {
     body: payload.body, icon: '/push-icon.png', badge: '/push-icon.png',
     tag: typeof payload.tag === 'string' ? payload.tag : 'balance-reminder',
-    data: { url: '/?section=reminders' },
+    data: { url: '/?section=notifications' },
   }));
 });
 self.addEventListener('notificationclick', event => {
   event.notification.close();
   event.waitUntil((async () => {
-    const target = new URL('/?section=reminders', self.location.origin).href;
+    const target = new URL('/?section=notifications', self.location.origin).href;
     const windows = await self.clients.matchAll({type:'window',includeUncontrolled:true});
     for (const client of windows) {
       if (new URL(client.url).origin === self.location.origin) {
