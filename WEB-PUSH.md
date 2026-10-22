@@ -1,3 +1,11 @@
+## Frecuencia compartida (migración 0019)
+
+La frecuencia se guarda en notification_settings.repeat_seconds al pulsar Guardar preferencias. Controla el push web de todos los navegadores activados de la cuenta y la revisión de la campana. 0 desactiva los envíos automáticos; 86400 conserva un resumen diario; los otros valores permiten repeticiones desde la hora de Colombia configurada. Los pagos saldados y las promociones inactivas o fuera de vigencia dejan de incluirse.
+
+Con la web visible, POST /api/web-push/check revisa solo la cuenta autenticada. GitHub y Vercel comparten el registro de envíos para impedir duplicados concurrentes. Con la web cerrada, la frecuencia es un mínimo entre envíos y depende de la ejecución del cron: no garantiza avisos cada 30 segundos ni cada minuto. El workflow sigue a los minutos 7 y 37. El APK conserva su programación nativa independiente.
+
+Requiere aplicar 0019_notification_repeat.sql y publicar el código para que GitHub Actions consulte el comportamiento nuevo en producción. Las preferencias anteriores conservan una vez al día hasta que el usuario guarde una frecuencia distinta.
+
 # Notificaciones web
 
 Se activan por navegador, con permiso explícito, desde **Notificaciones → Activar notificaciones web**. Después, **Probar aviso** envía una notificación real desde el servidor. No se envían notificaciones de prueba automáticamente.

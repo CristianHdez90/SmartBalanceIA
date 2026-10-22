@@ -60,6 +60,7 @@ async function fixture() {
   const sql = readFileSync(new URL('../drizzle/0014_device_reminders.sql', import.meta.url),'utf8');
   await client.batch(sql.split(/-->\s*statement-breakpoint/).filter(s => s.trim()),'write');
   await client.batch(readFileSync(new URL('../drizzle/0018_supermarket_details.sql',import.meta.url),'utf8').split(/-->\s*statement-breakpoint/),'write');
+  await client.execute(readFileSync(new URL('../drizzle/0019_notification_repeat.sql',import.meta.url),'utf8'));
   const auxiliarySql=readFileSync(new URL('../drizzle/0016_auxiliary_interval.sql',import.meta.url),'utf8');
   await client.batch(auxiliarySql.split(/-->\s*statement-breakpoint/).filter(s=>s.trim()),'write');
   const db = { prepare(sql, args = []) { return { bind(...args) { return db.prepare(sql,args); }, async all() { const r = await client.execute({sql,args}); return {results:r.rows.map(r=>({...r})),meta:{changes:r.rowsAffected}}; }, async first() { return (await this.all()).results[0]??null; }, async run() { return this.all(); } }; } };

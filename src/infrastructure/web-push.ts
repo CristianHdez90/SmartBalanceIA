@@ -53,7 +53,7 @@ export class WebPushRepository {
   }
 }
 
-export async function dispatchWebPush(db: DatabaseClient, now = Date.now(), send = sendWebPush, source: 'vercel' | 'github' = 'vercel', scope?: { userId: string; endpoint: string }) {
+export async function dispatchWebPush(db: DatabaseClient, now = Date.now(), send = sendWebPush, source: 'vercel' | 'github' | 'frontend' = 'vercel', scope?: { userId: string; endpoint?: string }) {
   const deadline = Date.now()+45000;
   const day = bogotaDay(now);
   // Expired/revoked sessions and disabled accounts never receive reminders.
@@ -63,17 +63,17 @@ export async function dispatchWebPush(db: DatabaseClient, now = Date.now(), send
     FROM web_push_subscriptions p LEFT JOIN web_push_deliveries d ON d.subscription_id=p.id AND d.day=?
     LEFT JOIN notification_settings n ON n.user_id=p.user_id
     LEFT JOIN notification_auxiliary_checks a ON a.user_id=p.user_id
-    WHERE (d.subscription_id IS NULL OR (d.state!='sent' AND d.attempts<3 AND d.retry_at<=?))
-    AND (? IS NULL OR (p.user_id=? AND p.endpoint=?))
-    AND (?='vercel' OR (COALESCE(n.auxiliary_minutes,30)>0 AND (a.checked_at IS NULL OR a.checked_at+COALESCE(n.auxiliary_minutes,30)*60000<=?)))
+    WHERE COALESCE(n.repeat_seconds,86400)>0 AND (d.subscription_id IS NULL OR (d.state='sent' AND COALESCE(n.repeat_seconds,86400)<86400 AND d.updated_at+COALESCE(n.repeat_seconds,86400)*1000<=?) OR (d.state!='sent' AND d.attempts<3 AND d.retry_at<=?))
+    AND (? IS NULL OR (p.user_id=? AND (? IS NULL OR p.endpoint=?)))
+    AND (?!='github' OR COALESCE(n.repeat_seconds,86400)<86400 OR (COALESCE(n.auxiliary_minutes,30)>0 AND (a.checked_at IS NULL OR a.checked_at+COALESCE(n.auxiliary_minutes,30)*60000<=?)))
     AND COALESCE(n.time,'08:00')<=? ORDER BY p.updated_at,p.id LIMIT 100`)
-    .bind(day,now,scope?.userId??null,scope?.userId??null,scope?.endpoint??null,source,now,new Intl.DateTimeFormat('en-GB',{timeZone:'America/Bogota',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(now)).all<PushRow>()).results;
+    .bind(day,now,now,scope?.userId??null,scope?.userId??null,scope?.endpoint??null,scope?.endpoint??null,source,now,new Intl.DateTimeFormat('en-GB',{timeZone:'America/Bogota',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(now)).all<PushRow>()).results;
   let sent = 0, failed = 0, processed = 0;
   const plans = new Map<string, Awaited<ReturnType<RemindersRepository['read']>>>();
   const auxiliaryClaims = new Map<string, boolean>();
   for (const row of rows) {
     if(Date.now()>=deadline) break;
-    if(source==='github') {
+    if(source==='github' && (await db.prepare('SELECT repeat_seconds AS seconds FROM notification_settings WHERE user_id=?').bind(row.userId).first<{seconds:number}>())?.seconds===86400) {
       if(!auxiliaryClaims.has(row.userId)) {
         const claim=await db.prepare(`INSERT INTO notification_auxiliary_checks(user_id,checked_at)
           SELECT ?,? WHERE COALESCE((SELECT auxiliary_minutes FROM notification_settings WHERE user_id=?),30)>0
@@ -98,12 +98,12 @@ export async function dispatchWebPush(db: DatabaseClient, now = Date.now(), send
     if (!reminder) continue;
     const claimed = await db.prepare(`INSERT INTO web_push_deliveries(subscription_id,day,state,attempts,retry_at,updated_at)
       SELECT ?,?,'sending',1,?,? WHERE EXISTS(SELECT 1 FROM web_push_subscriptions p JOIN sessions s ON s.id_hash=p.session_hash JOIN users u ON u.id=p.user_id WHERE p.id=? AND s.expires_at>? AND u.status='active')
-      ON CONFLICT(subscription_id,day) DO UPDATE SET state='sending',attempts=web_push_deliveries.attempts+1,retry_at=excluded.retry_at,updated_at=excluded.updated_at
-      WHERE web_push_deliveries.state!='sent' AND web_push_deliveries.attempts<3 AND web_push_deliveries.retry_at<=?`)
-      .bind(row.id,day,now+5*60000,now,row.id,now,now).run();
+      ON CONFLICT(subscription_id,day) DO UPDATE SET state='sending',attempts=CASE WHEN web_push_deliveries.state='sent' THEN 1 ELSE web_push_deliveries.attempts+1 END,retry_at=excluded.retry_at,updated_at=excluded.updated_at
+      WHERE (web_push_deliveries.state!='sent' AND web_push_deliveries.attempts<3 AND web_push_deliveries.retry_at<=?) OR (web_push_deliveries.state='sent' AND ?<86400 AND ?>0 AND web_push_deliveries.updated_at+?*1000<=?)`)
+      .bind(row.id,day,now+5*60000,now,row.id,now,now,data.settings.repeatSeconds,data.settings.repeatSeconds,data.settings.repeatSeconds,now).run();
     if (!claimed.meta.changes) continue;
     try {
-      await send(row,reminder.body,reminder.id);
+      await send(row,reminder.body,data.settings.repeatSeconds<86400?reminder.id+'-'+now:reminder.id);
       await db.prepare("UPDATE web_push_deliveries SET state='sent',updated_at=? WHERE subscription_id=? AND day=?").bind(now,row.id,day).run(); sent++;
     } catch(e) {
       if ([404,410].includes(pushErrorStatus(e))) await db.prepare('DELETE FROM web_push_subscriptions WHERE id=?').bind(row.id).run();

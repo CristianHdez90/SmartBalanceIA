@@ -18,9 +18,12 @@ export default function NotificationBell({userId,onChange,revision}:{userId:stri
       if(!r.ok)throw new Error(data.error);
       if(controller.signal.aborted||seq!==generation.current)return;
       setItems(data.items);setUnread(data.unread);setError('');
+      const seconds=data.repeatSeconds===86400?60:data.repeatSeconds;
+      if(typeof seconds==='number'&&seconds!==readNotificationInterval(userId)){try{localStorage.setItem(notificationIntervalKey(userId),String(seconds));}catch{}window.dispatchEvent(new CustomEvent('balance-notification-interval',{detail:{userId}}));}
+      if(data.repeatSeconds>0){const push=await fetch('/api/web-push/check',{method:'POST',signal:controller.signal});if(!push.ok){const failure=await push.json();throw new Error(failure.error||'No se pudieron enviar los avisos.');}}
     }catch(e){if(!controller.signal.aborted&&seq===generation.current)setError((e as Error).message);}
     finally {if(seq===generation.current)setLoading(false);}
-  },[]);
+  },[userId]);
   useEffect(()=>{
     let timer:ReturnType<typeof setInterval>|undefined;
     const reset=()=>{if(timer)clearInterval(timer);const seconds=readNotificationInterval(userId);if(seconds)timer=setInterval(()=>void refresh(),seconds*1000);};

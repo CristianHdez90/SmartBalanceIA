@@ -70,7 +70,7 @@ export const obligationHistory=sqliteTable('obligation_history',{
 export const notificationSettings = sqliteTable('notification_settings', {
  userId:text('user_id').primaryKey().notNull().references(()=>users.id),
  payments:integer('payments').notNull().default(1),promotions:integer('promotions').notNull().default(1),
- advanceDays:integer('advance_days').notNull().default(3),time:text('time').notNull().default('08:00'),auxiliaryMinutes:integer('auxiliary_minutes').notNull().default(30),updatedAt:integer('updated_at').notNull(),
+ advanceDays:integer('advance_days').notNull().default(3),time:text('time').notNull().default('08:00'),repeatSeconds:integer('repeat_seconds').notNull().default(86400),auxiliaryMinutes:integer('auxiliary_minutes').notNull().default(30),updatedAt:integer('updated_at').notNull(),
 },t=>[check('reminder_payments_bool',sql`${t.payments} IN (0,1)`),check('reminder_promotions_bool',sql`${t.promotions} IN (0,1)`),check('reminder_advance_range',sql`${t.advanceDays} BETWEEN 0 AND 14`)]);
 export const promotionReminders = sqliteTable('promotion_reminders', {
  id:text('id').notNull(),userId:text('user_id').notNull().references(()=>users.id),supermarket:text('supermarket').notNull(),product:text('product').notNull(),

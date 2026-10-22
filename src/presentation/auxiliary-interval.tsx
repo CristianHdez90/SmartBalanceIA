@@ -1,21 +1,5 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { notificationIntervalKey, readNotificationInterval } from './notification-refresh';
-
-export default function AuxiliaryInterval({userId}:{userId:string}) {
-  const [seconds,setSeconds]=useState(60),[error,setError]=useState('');
-  useEffect(()=>{const timer=setTimeout(()=>setSeconds(readNotificationInterval(userId)),0);return()=>clearTimeout(timer);},[userId]);
-  function change(value:number) {
-    try {
-      localStorage.setItem(notificationIntervalKey(userId),String(value));setSeconds(value);setError('');
-      window.dispatchEvent(new CustomEvent('balance-notification-interval',{detail:{userId}}));
-    }catch {setError('No se pudo guardar el intervalo en este navegador.');}
-  }
-  return <>
-    <label>Frecuencia de actualización de notificaciones<select value={seconds} onChange={e=>change(Number(e.target.value))}>
-      <option value={0}>Desactivar actualización automática</option><option value={30}>Cada 30 segundos</option><option value={60}>Cada 1 minuto</option><option value={600}>Cada 10 minutos</option><option value={1200}>Cada 20 minutos</option><option value={1800}>Cada 30 minutos</option><option value={3600}>Cada hora</option>
-    </select></label>
-    <small>Elige cada cuánto actualizar la campana mientras usas la plataforma. Al desactivar, podrás seguir consultándola al abrirla. Tu preferencia se guarda automáticamente en este navegador.</small>
-    {error&&<p role="alert">{error}</p>}
-  </>;
+import type {ReminderSettings} from '../domain/reminders';
+export default function AuxiliaryInterval({seconds,onChange}:{seconds:number;onChange:(value:ReminderSettings['repeatSeconds'])=>void}) {
+return <><label>Frecuencia de notificaciones<select value={seconds} onChange={e=>onChange(Number(e.target.value) as ReminderSettings['repeatSeconds'])}><option value={0}>Desactivar avisos automáticos</option><option value={30}>Cada 30 segundos</option><option value={60}>Cada 1 minuto</option><option value={600}>Cada 10 minutos</option><option value={1200}>Cada 20 minutos</option><option value={1800}>Cada 30 minutos</option><option value={3600}>Cada hora</option><option value={86400}>Una vez al día</option></select></label><small>Guarda las preferencias para aplicar la frecuencia a la campana y al push de tus navegadores activados, a partir de la hora elegida. Con la web visible se revisa a este intervalo. Con la web cerrada depende de las ejecuciones del servidor; GitHub Actions puede retrasarse. Desactivar detiene los envíos automáticos, pero permite consultar la campana.</small></>;
 }

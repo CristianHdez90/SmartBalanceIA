@@ -29,7 +29,7 @@ async function fixture() {
   await client.execute('CREATE TABLE obligations(id TEXT,user_id TEXT,month TEXT,due_date TEXT,due_day INTEGER,amount INTEGER,name TEXT DEFAULT \'Obligación\',note TEXT DEFAULT \'\')');
   await client.execute('CREATE TABLE movements(user_id TEXT,obligation_id TEXT,kind TEXT,amount INTEGER)');
   await client.execute('CREATE TABLE obligation_carries(user_id TEXT,source_id TEXT,target_id TEXT,amount INTEGER)');
-  for(const file of ['0014_device_reminders.sql','0015_web_push.sql','0016_auxiliary_interval.sql','0017_notification_inbox.sql','0018_supermarket_details.sql']) {
+  for(const file of ['0014_device_reminders.sql','0015_web_push.sql','0016_auxiliary_interval.sql','0017_notification_inbox.sql','0018_supermarket_details.sql','0019_notification_repeat.sql']) {
     const sql=readFileSync(new URL('../drizzle/'+file,import.meta.url),'utf8');
     await client.batch(sql.split(/-->\s*statement-breakpoint/).filter(s=>s.trim()),'write');
   }
@@ -224,4 +224,24 @@ test('service worker opens only the app and never caches financial data',async()
   assert.equal(shown[0][1].data.url,'/?section=reminders');
   handlers.notificationclick({notification:{close(){}},waitUntil:p=>promise=p});await promise;
   assert.deepEqual(opened,['https://balance.test/?section=reminders']);
+});
+
+test('saved repeating frequency is shared by frontend and GitHub, with atomic deduplication and disable',async()=>{
+ const f=await fixture();try{
+ const prefs=new RemindersRepository(f.db,'alice');
+ await prefs.execute({action:'settings',settings:{...domain.defaultReminderSettings,repeatSeconds:30}});
+ let calls=0;const send=async()=>{calls++};
+ assert.equal((await dispatchWebPush(f.db,now,send,'frontend',{userId:'alice'})).sent,1);
+ assert.equal((await dispatchWebPush(f.db,now+29000,send,'github')).sent,0);
+ await Promise.all([dispatchWebPush(f.db,now+30000,send,'github'),dispatchWebPush(f.db,now+30000,send,'frontend',{userId:'alice'})]);
+ assert.equal(calls,2);
+ await prefs.execute({action:'settings',settings:{...domain.defaultReminderSettings,repeatSeconds:600}});
+ assert.equal((await dispatchWebPush(f.db,now+60000,send,'github')).sent,0);
+ assert.equal((await dispatchWebPush(f.db,now+630000,send,'github')).sent,1);
+ await prefs.execute({action:'settings',settings:{...domain.defaultReminderSettings,repeatSeconds:0}});
+ assert.equal((await dispatchWebPush(f.db,now+1300000,send,'vercel')).sent,0);
+ await prefs.execute({action:'settings',settings:{...domain.defaultReminderSettings,repeatSeconds:30}});
+ await f.client.execute("INSERT INTO movements VALUES('alice','debt','payment',100000)");
+ assert.equal((await dispatchWebPush(f.db,now+1400000,send,'github')).sent,0);
+ }finally{f.client.close();}
 });

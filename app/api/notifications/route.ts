@@ -17,7 +17,7 @@ export async function GET(request:Request) {
   try {
     const db=database(),user=await new D1AuthRepository(db).requireUser(request);
     const data=await new RemindersRepository(db,user.id).read();
-    return json(await new NotificationInboxRepository(db,user.id).refresh(data.todayNotifications));
+    return json({...await new NotificationInboxRepository(db,user.id).refresh(data.todayNotifications),repeatSeconds:data.settings.repeatSeconds});
   }catch(e){return failure(e);}
 }
 export async function POST(request:Request) {

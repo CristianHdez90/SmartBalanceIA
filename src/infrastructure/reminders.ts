@@ -6,7 +6,7 @@ import { addDays, bogotaDay, buildReminderPlan, defaultReminderSettings, Reminde
 export class RemindersRepository {
   constructor(private readonly db: DatabaseClient, private readonly userId: string) {}
   async read(now = Date.now()) {
-    const row = await this.db.prepare('SELECT payments,promotions,advance_days AS advanceDays,time,auxiliary_minutes AS auxiliaryMinutes FROM notification_settings WHERE user_id=?').bind(this.userId).first<ReminderSettings>();
+    const row = await this.db.prepare('SELECT repeat_seconds AS repeatSeconds,payments,promotions,advance_days AS advanceDays,time,auxiliary_minutes AS auxiliaryMinutes FROM notification_settings WHERE user_id=?').bind(this.userId).first<ReminderSettings>();
     const settings = row ? { ...row, payments: !!row.payments, promotions: !!row.promotions } : defaultReminderSettings;
     const rows = (await this.db.prepare('SELECT id,supermarket,website,city,address,phone,product,weekdays,start_date AS startDate,end_date AS endDate,note,enabled,version FROM promotion_reminders WHERE user_id=? ORDER BY enabled DESC,end_date,supermarket,id').bind(this.userId).all<Omit<PromotionReminder, 'weekdays'> & { weekdays: string }>()).results;
     const promotions = rows.map(p => ({ ...p, enabled: !!p.enabled, weekdays: JSON.parse(p.weekdays) as number[] }));
@@ -23,7 +23,7 @@ export class RemindersRepository {
   async execute(command: ReminderCommand) {
     if (command.action === 'settings') {
       const s = command.settings;
-      await this.db.prepare('INSERT INTO notification_settings(user_id,payments,promotions,advance_days,time,auxiliary_minutes,updated_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET payments=excluded.payments,promotions=excluded.promotions,advance_days=excluded.advance_days,time=excluded.time,auxiliary_minutes=excluded.auxiliary_minutes,updated_at=excluded.updated_at').bind(this.userId, Number(s.payments), Number(s.promotions), s.advanceDays, s.time, s.auxiliaryMinutes, Date.now()).run();
+      await this.db.prepare('INSERT INTO notification_settings(user_id,payments,promotions,advance_days,time,auxiliary_minutes,repeat_seconds,updated_at) VALUES(?,?,?,?,?,?,?,?) ON CONFLICT(user_id) DO UPDATE SET payments=excluded.payments,promotions=excluded.promotions,advance_days=excluded.advance_days,time=excluded.time,auxiliary_minutes=excluded.auxiliary_minutes,repeat_seconds=excluded.repeat_seconds,updated_at=excluded.updated_at').bind(this.userId, Number(s.payments), Number(s.promotions), s.advanceDays, s.time, s.auxiliaryMinutes, s.repeatSeconds, Date.now()).run();
     } else {
       let result;
       if (command.action === 'delete') result = await this.db.prepare('DELETE FROM promotion_reminders WHERE user_id=? AND id=? AND version=?').bind(this.userId, command.id, command.version).run();
