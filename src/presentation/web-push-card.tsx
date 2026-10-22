@@ -23,6 +23,8 @@ export default function WebPushCard() {
     const config=await request(); setKey(config.publicKey??'');
     if(!config.configured) { setMessage('Las notificaciones web están pendientes de la configuración del servidor.'); return; }
     const registration=await navigator.serviceWorker.getRegistration('/');
+    // Existing installations must receive the worker that forwards push arrivals to the page.
+    if(registration)await registration.update();
     const sub=await registration?.pushManager.getSubscription();
     const active=sub ? !!(await request({action:'status',endpoint:sub.endpoint})).enabled : false;
     setEnabled(active);

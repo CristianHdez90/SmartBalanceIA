@@ -6,7 +6,7 @@ export function useNotificationSound(){
  const [soundStatus,setSoundStatus]=useState('Activando sonido automático…');
  const play=useCallback(()=>{
   const context=audio.current;
-  if(document.hidden||!context||context.state!=='running'){pending.current=true;return;}
+  if(!context||context.state!=='running'){pending.current=true;return;}
   pending.current=false;if(Date.now()-lastPlayed.current<2500)return;
   try{for(const [delay,frequency] of [[0,660],[0.18,880]]){
    const oscillator=context.createOscillator(),gain=context.createGain(),start=context.currentTime+delay;
@@ -30,13 +30,13 @@ export function useNotificationSound(){
   const gesture=()=>{void unlock();};
   const visibility=()=>{if(!document.hidden&&pending.current)void unlock();};
   const received=new Set<string>();
-  const push=(event:MessageEvent)=>{if(event.data?.type!=='balance-push-received'||typeof event.data.tag!=='string'||received.has(event.data.tag))return;received.add(event.data.tag);play();if(pending.current&&!document.hidden)void unlock();};
+  const push=(event:MessageEvent)=>{if(event.data?.type!=='balance-push-received'||typeof event.data.tag!=='string'||received.has(event.data.tag))return;received.add(event.data.tag);play();if(pending.current)void unlock();};
   window.addEventListener('pointerdown',gesture);window.addEventListener('keydown',gesture);document.addEventListener('visibilitychange',visibility);navigator.serviceWorker?.addEventListener('message',push);
   return()=>{clearTimeout(initial);window.removeEventListener('pointerdown',gesture);window.removeEventListener('keydown',gesture);document.removeEventListener('visibilitychange',visibility);navigator.serviceWorker?.removeEventListener('message',push);void audio.current?.close().catch(()=>{});audio.current=null;};
  },[unlock,play]);
  const notifySound=useCallback((items:InboxNotification[])=>{
   const previous=seen.current,fresh=previous!==null&&items.some(n=>n.active&&n.readAt===null&&!previous.has(n.id));
-  seen.current??=new Set();for(const n of items)seen.current.add(n.id);if(fresh){play();if(pending.current&&!document.hidden)void unlock();}
+  seen.current??=new Set();for(const n of items)seen.current.add(n.id);if(fresh){play();if(pending.current)void unlock();}
  },[play,unlock]);
  const testSound=useCallback(async()=>{await unlock();play();},[unlock,play]);
  return {notifySound,testSound,soundStatus};
