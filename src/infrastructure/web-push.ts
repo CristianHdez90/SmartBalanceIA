@@ -1,3 +1,4 @@
+import {isExpoToken,sendExpoPush} from './expo-push';
 import { createHash } from 'node:crypto';
 import webpush from 'web-push';
 import type { DatabaseClient } from './database';
@@ -14,6 +15,7 @@ export function pushConfiguration() {
   return publicKey && privateKey && subject ? { publicKey, privateKey, subject } : null;
 }
 export async function sendWebPush(row: PushRow, body: string, tag: string) {
+  if(row.endpoint.startsWith('expo:')&&isExpoToken(row.endpoint.slice(5))){await sendExpoPush(row.endpoint.slice(5),body,tag);return;}
   const vapidDetails = pushConfiguration();
   if (!vapidDetails) throw new Error('Web Push no configurado');
   if (!isPushEndpoint(row.endpoint)) throw new Error('Proveedor no permitido');

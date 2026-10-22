@@ -3,7 +3,7 @@
     "name": "Mi Balance IA",
     "slug": "smartbalanceia",
     "scheme": "mibalance",
-    "version": "1.1.0",
+    "version": "1.2.0",
     "orientation": "default",
     "platforms": [
       "android",
@@ -57,7 +57,10 @@
         "expo-notifications",
         {
           "color": "#6366f1",
-          "defaultChannel": "mi-balance-reminders"
+          "defaultChannel": "mi-balance-alerts-v2",
+          "sounds": [
+            "./assets/balance_chime.wav"
+          ]
         }
       ]
     ],

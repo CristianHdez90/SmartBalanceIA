@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { Bell, CalendarDays, Pencil, Plus, ShoppingBasket, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { addDays, bogotaDay, type DeviceReminder, type PromotionReminder, type ReminderSettings } from '../domain/reminders';
-import { supportsDeviceReminders, syncDeviceReminders } from './device-reminders';
+import { isNativeApp, supportsDeviceReminders, syncDeviceReminders } from './device-reminders';
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import WebPushCard from './web-push-card';
 import AuxiliaryInterval from './auxiliary-interval';
@@ -20,13 +20,13 @@ export default function ReminderCenter({ userId, visible, revision, focusPromoti
   const alive = useRef(true), generation = useRef(0);
   const lastSettings = useRef<ReminderSettings | null>(null);
   const sync = useCallback(async (value: Data, action: 'sync' | 'enable' | 'disable' | 'test' = 'sync') => {
-    const supported = supportsDeviceReminders(); setNative(supported);
-    if (!supported) return;
+    const supported = supportsDeviceReminders(); setNative(isNativeApp());
+    if (!supported) { if (isNativeApp()) setDevice('Actualiza el APK o recarga la aplicación para conectar los avisos de este dispositivo.'); return; }
     try {
       const result = await syncDeviceReminders(userId, value.plan, action);
       if (!alive.current) return;
       setEnabled(result.enabled);
-      setDevice(result.enabled ? `Sincronizado: ${result.count} avisos diarios hasta el ${value.until}.` : 'Los avisos están desactivados en este dispositivo.');
+      setDevice(result.enabled ? `Avisos del dispositivo activados. Se aplicarán las preferencias guardadas.` : 'Los avisos están desactivados en este dispositivo.');
     } catch (e) { if (alive.current) setDevice((e as Error).message); }
   }, [userId]);
   const load = useCallback(async (manual = false) => {
@@ -43,7 +43,12 @@ export default function ReminderCenter({ userId, visible, revision, focusPromoti
   }, [sync]);
   useEffect(() => {
     alive.current = true;
-    const refresh = () => { if (!document.hidden) void load(); };
+    const detectDevice = () => {
+      setNative(isNativeApp());
+      if (isNativeApp() && !supportsDeviceReminders()) setDevice('Actualiza el APK o recarga la aplicación para conectar los avisos de este dispositivo.');
+    };
+    detectDevice();
+    const refresh = () => { detectDevice(); if (!document.hidden) void load(); };
     window.addEventListener('focus', refresh); window.addEventListener('mi-balance-reminders-ready', refresh); document.addEventListener('visibilitychange', refresh);
     const timer = setInterval(refresh, 5 * 60000);
     return () => { alive.current = false; clearInterval(timer); window.removeEventListener('focus', refresh); window.removeEventListener('mi-balance-reminders-ready', refresh); document.removeEventListener('visibilitychange', refresh); };
@@ -77,7 +82,7 @@ export default function ReminderCenter({ userId, visible, revision, focusPromoti
       <AuxiliaryInterval seconds={settings.repeatSeconds??86400} onChange={repeatSeconds=>setSettings({...settings,repeatSeconds})}/>
       <small>El servidor enviará el resumen a partir de esta hora. GitHub Actions revisa los avisos periódicamente; puede haber retrasos.</small><div className="reminder-actions"><button className="primary" disabled={busy}>Guardar preferencias</button><button type="button" className="secondary" disabled={busy} onClick={() => void refreshManually()}>Actualizar datos</button></div>
     </form> : <p>Cargando preferencias…</p>}</article></div>
-    <p className="reminder-explanation">{native ? <>Se programa un resumen diario para los próximos 30 días según las obligaciones existentes y las promociones vigentes. Abre la app para renovar el calendario y actualizar pagos hechos desde otros dispositivos. Al cerrar sesión se cancelan los avisos de este teléfono. El sistema operativo puede retrasarlos por ahorro de batería.</> : <>Los avisos web se calculan en el servidor con los pagos y promociones guardados, sin tener que abrir la página. Actívalos en cada navegador donde quieras recibirlos. En iPhone añade esta web a la pantalla de inicio antes de activarlos.</>}</p>
+    <p className="reminder-explanation">{native ? <>En la versión nueva del APK los avisos se calculan desde el servidor con las preferencias guardadas y se abren en tu bandeja. Requieren activar este dispositivo. Las versiones anteriores mantienen su calendario local diario. Al cerrar sesión se detienen los envíos. La ejecución del servidor y el ahorro de batería pueden retrasarlos.</> : <>Los avisos web se calculan en el servidor con los pagos y promociones guardados, sin tener que abrir la página. Actívalos en cada navegador donde quieras recibirlos. En iPhone añade esta web a la pantalla de inicio antes de activarlos.</>}</p>
     <Dialog open={!!editor && visible} onOpenChange={open => { if (!open && !busy) setEditor(null); }}><DialogContent className="editor reminder-center reminder-modal" showCloseButton={!busy}><DialogTitle>{editor?.version ? 'Editar promoción' : 'Registrar promoción'}</DialogTitle><DialogDescription>Registra el supermercado, los productos y sus días de promoción.</DialogDescription>{editor && <><p className="auth-error" role="alert">{error}</p><form onSubmit={e => { e.preventDefault(); if (!editor.weekdays.length) { setError('Selecciona al menos un día de promoción.'); return; } void save({ action: 'save', ...editor }); }}>
       <div className="reminder-form-grid"><label>Supermercado<input required minLength={2} maxLength={80} list="supermarket-options" value={editor.supermarket} onChange={e => setEditor({ ...editor, supermarket: e.target.value })}/><datalist id="supermarket-options"><option>Supermu</option><option>Éxito</option><option>Olímpica</option></datalist></label><label>Producto o categoría<input required minLength={2} maxLength={120} placeholder="Ej. frutas y verduras" value={editor.product} onChange={e => setEditor({ ...editor, product: e.target.value })}/></label>
       <label>Página web<input type="url" maxLength={500} placeholder="https://www.supermercado.com" value={editor.website} onChange={e=>setEditor({...editor,website:e.target.value})}/></label>

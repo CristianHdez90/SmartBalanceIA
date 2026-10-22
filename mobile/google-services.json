@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "455942012905",
+    "project_id": "smartbalanceia-c70cf",
+    "storage_bucket": "smartbalanceia-c70cf.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:455942012905:android:8ec8ffbbb659b1e6615578",
+        "android_client_info": {
+          "package_name": "com.cristianhdez.mibalance"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDn8MW2uy5WKIVgIVLcyv3IEByBev2eTJU"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

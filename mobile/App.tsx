@@ -11,9 +11,10 @@ import * as Sharing from 'expo-sharing';
 import { APP_URL, isAppUrl, isExternalUrl, parseExport } from './src/policy';
 
 import * as Notifications from 'expo-notifications';
+import {handleNativePush} from './src/native-push';
 import { handleReminderMessage } from './src/notifications';
 
-const REMINDER_READY = "window.miBalanceReminders=1;window.dispatchEvent(new Event('mi-balance-reminders-ready'));true;";
+const REMINDER_READY = "window.miBalanceReminders=2;window.dispatchEvent(new Event('mi-balance-reminders-ready'));true;";
 const LOCK_KEY = 'mi-balance-device-lock';
 export default function App() {
   const web = useRef<WebView<object>>(null);
@@ -31,17 +32,22 @@ export default function App() {
   }, [locked]);
   useEffect(() => {
     const response = Notifications.getLastNotificationResponse();
-    if (response?.notification.request.content.data?.section === 'reminders') { pendingReminder.current = true; Notifications.clearLastNotificationResponse(); }
+    if (response?.notification.request.content.data?.section === 'reminders' || response?.notification.request.content.data?.section === 'notifications') { pendingReminder.current = true; Notifications.clearLastNotificationResponse(); }
+    const arrived=Notifications.addNotificationReceivedListener(()=>{if(webReady.current&&isAppUrl(currentUrl.current)&&!locked)web.current?.injectJavaScript("window.dispatchEvent(new Event('balance-inbox-changed'));true;");});
     const sub = Notifications.addNotificationResponseReceivedListener(response => {
       if (response.notification.request.content.data?.section === 'reminders') { pendingReminder.current = true; Notifications.clearLastNotificationResponse(); openReminder(); }
     });
     if (pendingReminder.current) openReminder();
-    return () => sub.remove();
-  }, [openReminder]);
+    return () => {sub.remove();arrived.remove();};
+  }, [openReminder,locked]);
   async function onMessage(event: WebViewMessageEvent) {
     if (!isAppUrl(event.nativeEvent.url) || !isAppUrl(currentUrl.current)) return;
     let type: string;
     try { type = JSON.parse(event.nativeEvent.data).type; } catch { return; }
+    if(type==='mi-balance-push'){
+      try{const result=await handleNativePush(event.nativeEvent.data);if(isAppUrl(currentUrl.current))web.current?.injectJavaScript('window.dispatchEvent(new CustomEvent("mi-balance-push-result",{detail:'+JSON.stringify(result)+'}));true;');}catch{}
+      return;
+    }
     if (type !== 'mi-balance-reminders') { await exportFile(event); return; }
     try {
       const result = await handleReminderMessage(event.nativeEvent.data);
@@ -106,7 +112,7 @@ export default function App() {
   }
   return <SafeAreaProvider><SafeAreaView style={styles.root} edges={['top', 'bottom', 'left', 'right']}><StatusBar style="light"/>
     <View style={styles.toolbar}><Text style={styles.brand}>Mi Balance IA</Text><Pressable accessibilityRole="button" accessibilityLabel={lockEnabled ? 'Desactivar bloqueo biométrico' : 'Activar bloqueo biométrico'} disabled={locked || !ready} onPress={() => void toggleLock()} style={styles.control}><Text style={styles.controlText}>{lockEnabled ? '🔒' : '🔓'}</Text></Pressable><Pressable accessibilityRole="button" accessibilityLabel="Recargar aplicación" disabled={locked || !ready} onPress={() => { setError(false); web.current?.reload(); }} style={styles.control}><Text style={styles.controlText}>↻</Text></Pressable></View>
-    {ready && <WebView<object> injectedJavaScriptBeforeContentLoaded={REMINDER_READY} ref={web} source={{ uri: APP_URL }} style={styles.web} originWhitelist={['https://*','mailto:*','tel:*']} javaScriptEnabled domStorageEnabled sharedCookiesEnabled thirdPartyCookiesEnabled={false} mixedContentMode="never" allowsBackForwardNavigationGestures allowsInlineMediaPlayback={false} geolocationEnabled setSupportMultipleWindows onOpenWindow={event => void openExternal(event.nativeEvent.targetUrl)} onShouldStartLoadWithRequest={request => {
+    {ready && <WebView<object> injectedJavaScriptBeforeContentLoaded={REMINDER_READY} ref={web} source={{ uri: APP_URL }} style={styles.web} originWhitelist={['https://*','mailto:*','tel:*']} javaScriptEnabled mediaPlaybackRequiresUserAction={false} domStorageEnabled sharedCookiesEnabled thirdPartyCookiesEnabled={false} mixedContentMode="never" allowsBackForwardNavigationGestures allowsInlineMediaPlayback={false} geolocationEnabled setSupportMultipleWindows onOpenWindow={event => void openExternal(event.nativeEvent.targetUrl)} onShouldStartLoadWithRequest={request => {
       if (request.url === 'about:blank') return true;
       if (isAppUrl(request.url)) return true;
       void openExternal(request.url); return false;

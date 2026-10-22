@@ -16,7 +16,7 @@ function load(path,deps={}) {
 const domain=load('src/domain/reminders.ts'),pushDomain=load('src/domain/web-push.ts');
 const inboxDomain=load('src/domain/notification-inbox.ts',{'./reminders':domain});
 const {RemindersRepository}=load('src/infrastructure/reminders.ts',{'../domain/notification-inbox':inboxDomain,'../domain/reminders':domain,'../domain/finance':load('src/domain/finance.ts')});
-const {WebPushRepository,dispatchWebPush}=load('src/infrastructure/web-push.ts',{'./notification-inbox':load('src/infrastructure/notification-inbox.ts'),'./reminders':{RemindersRepository},'../domain/reminders':domain,'../domain/web-push':pushDomain});
+const {WebPushRepository,dispatchWebPush}=load('src/infrastructure/web-push.ts',{'./expo-push':load('src/infrastructure/expo-push.ts'),'./notification-inbox':load('src/infrastructure/notification-inbox.ts'),'./reminders':{RemindersRepository},'../domain/reminders':domain,'../domain/web-push':pushDomain});
 const before=Date.parse('2026-10-21T07:00:00-05:00'),now=Date.parse('2026-10-21T08:05:00-05:00');
 const subscription=id=>({endpoint:`https://fcm.googleapis.com/fcm/send/${id}`,keys:{p256dh:'B'.repeat(87),auth:'A'.repeat(22)}});
 async function fixture() {
@@ -243,5 +243,26 @@ test('saved repeating frequency is shared by frontend and GitHub, with atomic de
  await prefs.execute({action:'settings',settings:{...domain.defaultReminderSettings,repeatSeconds:30}});
  await f.client.execute("INSERT INTO movements VALUES('alice','debt','payment',100000)");
  assert.equal((await dispatchWebPush(f.db,now+1400000,send,'github')).sent,0);
+ }finally{f.client.close();}
+});
+
+test('Expo transport restricts tokens, sends private summaries and handles revoked devices',async()=>{
+ const {isExpoToken,sendExpoPush}=load('src/infrastructure/expo-push.ts');
+ assert.equal(isExpoToken('ExponentPushToken[abcdefghijk123]'),true);
+ assert.equal(isExpoToken('https://evil.test'),false);
+ const original=globalThis.fetch;const calls=[];
+ try{globalThis.fetch=async(url,options)=>{calls.push({url,body:JSON.parse(options.body)});return{ok:true,json:async()=>({data:{status:'ok',id:'ticket'}})}};
+ assert.equal(await sendExpoPush('ExponentPushToken[abcdefghijk123]','Resumen privado','tag'),'ticket');
+ assert.equal(calls[0].url,'https://exp.host/--/api/v2/push/send');assert.equal(calls[0].body.data.section,'notifications');assert.equal(calls[0].body.sound,'balance_chime.wav');
+ globalThis.fetch=async()=>({ok:true,json:async()=>({data:{status:'error',details:{error:'DeviceNotRegistered'}}})});
+ await assert.rejects(sendExpoPush('ExponentPushToken[abcdefghijk123]','Resumen','tag'),e=>e.statusCode===410);
+ }finally{globalThis.fetch=original;}
+});
+test('native endpoints keep account ownership and use the same frequency dispatcher',async()=>{
+ const f=await fixture();try{
+ const endpoint='expo:ExponentPushToken[abcdefghijk123]';await f.alice.subscribe({endpoint,keys:{p256dh:'',auth:''}});
+ assert.equal(await f.bob.status(endpoint),false);await assert.rejects(()=>f.bob.subscribe({endpoint,keys:{p256dh:'',auth:''}}));
+ const sent=[];await dispatchWebPush(f.db,now,async row=>sent.push(row.endpoint));assert.ok(sent.includes(endpoint));
+ await f.alice.remove(endpoint);assert.equal(await f.alice.status(endpoint),false);
  }finally{f.client.close();}
 });
