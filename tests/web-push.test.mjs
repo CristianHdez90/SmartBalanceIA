@@ -29,7 +29,7 @@ async function fixture() {
   await client.execute('CREATE TABLE obligations(id TEXT,user_id TEXT,month TEXT,due_date TEXT,due_day INTEGER,amount INTEGER,name TEXT DEFAULT \'Obligación\',note TEXT DEFAULT \'\')');
   await client.execute('CREATE TABLE movements(user_id TEXT,obligation_id TEXT,kind TEXT,amount INTEGER)');
   await client.execute('CREATE TABLE obligation_carries(user_id TEXT,source_id TEXT,target_id TEXT,amount INTEGER)');
-  for(const file of ['0014_device_reminders.sql','0015_web_push.sql','0016_auxiliary_interval.sql','0017_notification_inbox.sql']) {
+  for(const file of ['0014_device_reminders.sql','0015_web_push.sql','0016_auxiliary_interval.sql','0017_notification_inbox.sql','0018_supermarket_details.sql']) {
     const sql=readFileSync(new URL('../drizzle/'+file,import.meta.url),'utf8');
     await client.batch(sql.split(/-->\s*statement-breakpoint/).filter(s=>s.trim()),'write');
   }

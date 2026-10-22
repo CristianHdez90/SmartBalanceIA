@@ -59,6 +59,7 @@ async function fixture() {
   await client.execute('CREATE TABLE obligation_carries(user_id TEXT,source_id TEXT,target_id TEXT,amount INTEGER)');
   const sql = readFileSync(new URL('../drizzle/0014_device_reminders.sql', import.meta.url),'utf8');
   await client.batch(sql.split(/-->\s*statement-breakpoint/).filter(s => s.trim()),'write');
+  await client.batch(readFileSync(new URL('../drizzle/0018_supermarket_details.sql',import.meta.url),'utf8').split(/-->\s*statement-breakpoint/),'write');
   const auxiliarySql=readFileSync(new URL('../drizzle/0016_auxiliary_interval.sql',import.meta.url),'utf8');
   await client.batch(auxiliarySql.split(/-->\s*statement-breakpoint/).filter(s=>s.trim()),'write');
   const db = { prepare(sql, args = []) { return { bind(...args) { return db.prepare(sql,args); }, async all() { const r = await client.execute({sql,args}); return {results:r.rows.map(r=>({...r})),meta:{changes:r.rowsAffected}}; }, async first() { return (await this.all()).results[0]??null; }, async run() { return this.all(); } }; } };
@@ -115,4 +116,19 @@ test('native scheduler replaces duplicates, refuses permission denial and clears
   await call('enable'); await call('sync','bob'); assert.equal(scheduled.size,0);
   permission=false; assert.match((await call('enable')).error,/Permite las notificaciones/);
   assert.equal(scheduled.size,0);
+});
+
+test('supermarket contact fields validate and persist without changing other accounts',async()=>{
+ const f=await fixture();try{
+ const p=promotion();
+ const command=domain.reminderCommand.parse({action:'save',...p,website:'https://example.com',city:'Sincelejo',address:'Calle 20 # 10-15',phone:'+57 300 123 4567'});
+ await f.alice.execute(command);
+ const stored=(await f.alice.read(now)).promotions[0];
+ for(const key of ['website','city','address','phone'])assert.equal(stored[key],command[key]);
+ assert.equal((await f.bob.read(now)).promotions.length,0);
+ await f.alice.execute({...command,version:1,city:'Montería'});
+ assert.equal((await f.alice.read(now)).promotions[0].city,'Montería');
+ for(const website of ['javascript:alert(1)','data:text/html,hi','https://user:pass@example.com'])assert.equal(domain.reminderCommand.safeParse({...command,website}).success,false);
+ assert.equal(domain.reminderCommand.parse({action:'save',...p}).website,'');
+ }finally{f.client.close();}
 });

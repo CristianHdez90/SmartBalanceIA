@@ -13,6 +13,9 @@ export const defaultReminderSettings: ReminderSettings = { payments: true, promo
 export type ReminderSettings = z.infer<typeof reminderSettings>;
 const promotionFields = {
   id: z.string().uuid(), supermarket: z.string().trim().min(2).max(80),
+  website: z.string().trim().max(500).refine(v=>{if(!v)return true;try{const u=new URL(v);return ['https:','http:'].includes(u.protocol)&&!u.username&&!u.password;}catch{return false;}},'Usa una página web con https:// o http://').default(''),
+  city: z.string().trim().max(100).default(''), address: z.string().trim().max(250).default(''),
+  phone: z.string().trim().max(60).refine(v=>!v||/^[+\d\s().-]+$/.test(v),'Teléfono no válido').default(''),
   product: z.string().trim().min(2).max(120),
   weekdays: z.array(z.number().int().min(0).max(6)).min(1).max(7).refine(v => new Set(v).size === v.length),
   startDate: date, endDate: date, note: z.string().trim().max(300), enabled: z.boolean(),

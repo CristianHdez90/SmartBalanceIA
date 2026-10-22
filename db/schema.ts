@@ -74,6 +74,7 @@ export const notificationSettings = sqliteTable('notification_settings', {
 },t=>[check('reminder_payments_bool',sql`${t.payments} IN (0,1)`),check('reminder_promotions_bool',sql`${t.promotions} IN (0,1)`),check('reminder_advance_range',sql`${t.advanceDays} BETWEEN 0 AND 14`)]);
 export const promotionReminders = sqliteTable('promotion_reminders', {
  id:text('id').notNull(),userId:text('user_id').notNull().references(()=>users.id),supermarket:text('supermarket').notNull(),product:text('product').notNull(),
+ website:text('website').notNull().default(''),city:text('city').notNull().default(''),address:text('address').notNull().default(''),phone:text('phone').notNull().default(''),
  weekdays:text('weekdays').notNull(),startDate:text('start_date').notNull(),endDate:text('end_date').notNull(),note:text('note').notNull().default(''),
  enabled:integer('enabled').notNull().default(1),version:integer('version').notNull().default(1),updatedAt:integer('updated_at').notNull(),
 },t=>[primaryKey({columns:[t.userId,t.id]}),index('idx_promotion_reminders_user_dates').on(t.userId,t.startDate,t.endDate),check('reminder_enabled_bool',sql`${t.enabled} IN (0,1)`)]);
