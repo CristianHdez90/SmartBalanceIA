@@ -8,7 +8,7 @@ import "../src/presentation/financial-goals.css";
 import "../src/presentation/obligations-workspace.css";
 
 export const metadata: Metadata = {
-  title: "Mi Balance · Obligaciones e ingresos",
+  title: "SmartBalanceIA · Obligaciones e ingresos",
   description: "Tus ingresos, obligaciones y pagos mensuales en un solo lugar.",
   manifest: "/manifest.webmanifest",
   icons: {

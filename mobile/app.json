@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Mi Balance IA",
+    "name": "SmartBalanceIA",
     "slug": "smartbalanceia",
     "scheme": "mibalance",
     "version": "1.2.0",
@@ -15,8 +15,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.cristianhdez.mibalance",
       "infoPlist": {
-        "NSLocationWhenInUseUsageDescription": "Mi Balance usa tu ubicación cuando buscas promociones cercanas.",
-        "NSMicrophoneUsageDescription": "Mi Balance usa el micrófono cuando eliges dictar un gasto.",
+        "NSLocationWhenInUseUsageDescription": "SmartBalanceIA usa tu ubicación cuando buscas promociones cercanas.",
+        "NSMicrophoneUsageDescription": "SmartBalanceIA usa el micrófono cuando eliges dictar un gasto.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },

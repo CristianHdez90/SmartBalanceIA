@@ -1,0 +1,5 @@
+import assert from 'node:assert/strict';import {test} from 'node:test';import {readFileSync} from 'node:fs';import {createRequire} from 'node:module';import ts from 'typescript';
+const require=createRequire(import.meta.url);const m={exports:{}};new Function('require','module','exports',ts.transpileModule(readFileSync('src/presentation/list-pagination.tsx','utf8'),{compilerOptions:{jsx:ts.JsxEmit.ReactJSX,module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(n=>n.endsWith('.css')?{}:require(n),m,m.exports);
+const {pageWindow}=m.exports;
+test('22 records paginate without loss or duplication',()=>{const items=Array.from({length:22},(_,i)=>i);const all=[1,2,3].flatMap(p=>{const r=pageWindow(22,10,p);return items.slice(r.start,r.end)});assert.deepEqual(all,items);});
+test('empty, last-page deletion and page-size changes remain in range',()=>{assert.deepEqual(pageWindow(0,10,5),{page:1,pages:1,start:0,end:0});assert.deepEqual(pageWindow(20,10,3),{page:2,pages:2,start:10,end:20});assert.deepEqual(pageWindow(22,50,3),{page:1,pages:1,start:0,end:22});});

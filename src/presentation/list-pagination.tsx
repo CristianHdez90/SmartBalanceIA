@@ -3,12 +3,12 @@ import {useState} from 'react';
 import './list-pagination.css';
 export function pageWindow(total:number,size:number,page:number){const pages=Math.max(1,Math.ceil(total/size));const current=Math.max(1,Math.min(page,pages));return {page:current,pages,start:(current-1)*size,end:Math.min(current*size,total)};}
 export function usePagination<T>(items:T[],resetKey:string,focusIndex=-1,last=false){
- resetKey=resetKey+':focus:'+focusIndex;
- const [state,setState]=useState({key:resetKey,page:focusIndex>=0?Math.floor(focusIndex/10)+1:last?Math.max(1,Math.ceil(items.length/10)):1,size:10});
+ const key=resetKey+':focus:'+focusIndex;
+ const [state,setState]=useState({key,page:focusIndex>=0?Math.floor(focusIndex/10)+1:last?Math.max(1,Math.ceil(items.length/10)):1,size:10});
  const initial=focusIndex>=0?Math.floor(focusIndex/state.size)+1:last?Math.ceil(items.length/state.size):1;
- if(state.key!==resetKey)setState({...state,key:resetKey,page:Math.max(1,initial)});
- const range=pageWindow(items.length,state.size,state.key===resetKey?state.page:initial);
- return {...range,total:items.length,size:state.size,items:items.slice(range.start,range.end),setPage:(page:number)=>setState({...state,key:resetKey,page}),setSize:(size:number)=>setState({key:resetKey,page:1,size})};
+ if(state.key!==key)setState({...state,key,page:Math.max(1,initial)});
+ const range=pageWindow(items.length,state.size,state.key===key?state.page:initial);
+ return {...range,total:items.length,size:state.size,items:items.slice(range.start,range.end),setPage:(page:number)=>setState({...state,key,page}),setSize:(size:number)=>setState({key,page:1,size})};
 }
 type Pager={page:number;pages:number;start:number;end:number;total:number;size:number;setPage:(page:number)=>void;setSize:(size:number)=>void};
 export default function ListPagination({pager,label,disabled=false}:{pager:Pager;label:string;disabled?:boolean}){

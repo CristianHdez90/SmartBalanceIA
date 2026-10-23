@@ -26,7 +26,7 @@ export function handleReminderMessage(raw: string): Promise<{ id: string; enable
       const allowed = permission.granted || permission.ios?.status === IosAuthorizationStatus.PROVISIONAL;
       if (!allowed) {
         await cancel(); await SecureStore.deleteItemAsync(KEY);
-        if (request.action === 'enable' || request.action === 'test') throw new Error('Permite las notificaciones de Mi Balance en los ajustes del teléfono y vuelve a activarlas.');
+        if (request.action === 'enable' || request.action === 'test') throw new Error('Permite las notificaciones de SmartBalanceIA en los ajustes del teléfono y vuelve a activarlas.');
         return { id: request.id, enabled: false, count: 0 };
       }
       if (request.action === 'enable') { await SecureStore.setItemAsync(KEY, request.userId); owner = request.userId; }
@@ -38,7 +38,7 @@ export function handleReminderMessage(raw: string): Promise<{ id: string; enable
         await Notifications.scheduleNotificationAsync({ identifier: item.id, content: { title: item.title, body: item.body, sound: 'default', data: { section: 'reminders' } }, trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(item.at), channelId: CHANNEL } });
         count++;
       }
-      if (request.action === 'test') await Notifications.scheduleNotificationAsync({ identifier: 'balance-test', content: { title: 'Mi Balance IA', body: 'Los avisos están activos en este dispositivo.', sound: 'default', data: { section: 'reminders' } }, trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(Date.now() + 5000), channelId: CHANNEL } });
+      if (request.action === 'test') await Notifications.scheduleNotificationAsync({ identifier: 'balance-test', content: { title: 'SmartBalanceIA', body: 'Los avisos están activos en este dispositivo.', sound: 'default', data: { section: 'reminders' } }, trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: new Date(Date.now() + 5000), channelId: CHANNEL } });
       return { id: request.id, enabled: true, count };
     } catch (e) {
       await cancel().catch(() => {});

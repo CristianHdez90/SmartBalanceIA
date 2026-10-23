@@ -5,3 +5,5 @@
 .notification-nav-children svg{flex-shrink:0}
 .balance-sidebar .notification-nav-active,.balance-mobile-nav nav .notification-nav-active{color:#b7c1ff;background:#6366f114}
 @media(prefers-reduced-motion:reduce){.notification-nav-chevron{transition:none}}
+
+.balance-breadcrumb ol{display:flex;flex-wrap:wrap;align-items:center;gap:8px;list-style:none;margin:0;padding:0}.balance-breadcrumb li{display:flex;align-items:center;gap:8px}.balance-breadcrumb button{border:0;background:none;color:inherit;font:inherit;padding:4px 0;cursor:pointer}.balance-breadcrumb button:hover{text-decoration:underline;color:#e0e7ff}.balance-breadcrumb button:focus-visible{outline:2px solid #a5b4fc;outline-offset:3px}.balance-breadcrumb [aria-current=page]{color:#e0e7ff}

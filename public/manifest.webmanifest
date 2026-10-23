@@ -1,7 +1,7 @@
 {
   "id": "/",
-  "name": "Mi Balance IA",
-  "short_name": "Mi Balance",
+  "name": "SmartBalanceIA",
+  "short_name": "SmartBalanceIA",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

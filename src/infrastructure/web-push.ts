@@ -20,7 +20,7 @@ export async function sendWebPush(row: PushRow, body: string, tag: string) {
   if (!vapidDetails) throw new Error('Web Push no configurado');
   if (!isPushEndpoint(row.endpoint)) throw new Error('Proveedor no permitido');
   await webpush.sendNotification({ endpoint: row.endpoint, keys: { p256dh: row.p256dh, auth: row.auth } },
-    JSON.stringify({ title: 'Mi Balance IA', body, tag }),
+    JSON.stringify({ title: 'SmartBalanceIA', body, tag }),
     { vapidDetails, TTL: 3600, urgency: 'normal', timeout: 10000 });
 }
 export function pushErrorStatus(error: unknown) {
@@ -50,7 +50,7 @@ export class WebPushRepository {
     const claimed = await this.db.prepare(`UPDATE web_push_subscriptions SET last_test_at=? WHERE user_id=? AND session_hash=? AND endpoint=? AND last_test_at<? RETURNING id,user_id AS userId,endpoint,p256dh,auth,created_at AS createdAt`)
       .bind(now,this.userId,this.sessionHash,endpoint,now-60000).first<PushRow>();
     if (!claimed) throw new WebPushError('Activa los avisos y espera un minuto entre pruebas.',429);
-    try { await sendWebPush(claimed, 'Las notificaciones de Mi Balance IA están activadas.', 'balance-test'); }
+    try { await sendWebPush(claimed, 'Las notificaciones de SmartBalanceIA están activadas.', 'balance-test'); }
     catch (e) { if ([404,410].includes(pushErrorStatus(e))) await this.remove(endpoint); throw new WebPushError('No se pudo enviar la prueba. Desactiva y vuelve a activar los avisos.',502); }
   }
 }

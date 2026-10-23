@@ -11,7 +11,7 @@ export class NominatimGeocoder implements Geocoder {
     catch{throw new PromotionError('No fue posible consultar el sector. Intenta con la ubicación del dispositivo.',504)}
     if(!response.ok)throw new PromotionError('El servicio de ubicación no está disponible en este momento.',502);
     const values=await response.json() as Array<{lat?:string;lon?:string;display_name?:string}>;const first=values[0];
-    const latitude=Number(first?.lat),longitude=Number(first?.lon);
+    const latitude=first?.lat?Number(first.lat):NaN,longitude=first?.lon?Number(first.lon):NaN;
     if(!Number.isFinite(latitude)||!Number.isFinite(longitude))throw new PromotionError('No encontramos ese sector en Colombia. Prueba con barrio, ciudad y departamento.',404);
     return {latitude,longitude,label:String(first.display_name??query).slice(0,220)};
   }
